@@ -1,0 +1,23 @@
+
+services:
+  migration:
+    # build: .
+    image: ${NODE_IMAGE}
+    container_name: magento-shopify-migration
+    volumes:
+      # - ./products.csv:/app/products.csv:ro
+      # - ./logs:/app/logs
+      # - ./.env:/app/.env:ro
+      - ${PWD}:/app
+    environment:
+      - NODE_ENV=production
+    restart: "no"
+    networks:
+      - migration-network
+    working_dir: /app
+    command:
+      npm run migrate
+
+networks:
+  migration-network:
+    driver: bridge
