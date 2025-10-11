@@ -3,9 +3,14 @@ import fs from 'fs';
 import Papa from 'papaparse';
 import dotenv from 'dotenv';
 import pLimit from 'p-limit';
-import Normalizers from './normalizers.js';
+import Normalizers from './utils/Normalizers.js';
+import TimeTracker from './utils/TimeTracker.js';
+import Logger from './utils/Logger.js';
 
 dotenv.config();
+
+// Initialize logger
+const logger = new Logger();
 
 // Configurazione
 const CONFIG = {
@@ -13,24 +18,20 @@ const CONFIG = {
   shopifyAccessToken: process.env.SHOPIFY_ACCESS_TOKEN,
   magentoBaseUrl: process.env.MAGENTO_BASE_URL || '',
   magentoMediaPath: process.env.MAGENTO_MEDIA_PATH || '/pub/media/catalog/product',
-  csvPath: process.env.CSV_PATH || './products.csv',
+  csvPath: process.env.CSV_PATH || './data/products.csv',
   startRow: parseInt(process.env.START_ROW || '0'),
   batchSize: parseInt(process.env.BATCH_SIZE || '100'),
   maxConcurrent: parseInt(process.env.MAX_CONCURRENT || '2'),
-  delayBetweenRequests: parseInt(process.env.DELAY_MS || '500'),
-  logFile: process.env.LOG_FILE || './migration.log'
+  delayBetweenRequests: parseInt(process.env.DELAY_MS || '500')
 };
 
 // Rate limiting - Shopify consente 2 req/sec con GraphQL
 const limiter = pLimit(CONFIG.maxConcurrent);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Logger
+// Logger wrapper function to maintain compatibility
 function log(message, type = 'INFO') {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [${type}] ${message}\n`;
-  console.log(logMessage.trim());
-  fs.appendFileSync(CONFIG.logFile, logMessage);
+  logger.log(message, type);
 }
 
 // GraphQL Client per Shopify
@@ -723,6 +724,7 @@ function parseAdditionalAttributes(attrString) {
 
 // Main migration function
 async function migrateProducts() {
+  const timer = new TimeTracker();
   log('=== Starting Magento 2 to Shopify Migration ===');
   log(`Config: Start Row=${CONFIG.startRow}, Batch Size=${CONFIG.batchSize}`);
 
@@ -752,8 +754,20 @@ async function migrateProducts() {
       limiter(async () => {
         try {
           // Skip prodotti senza SKU o nome
-          if (!product.sku || !product.name) {
-            log(`Skipping product at row ${CONFIG.startRow + idx}: Missing SKU or name`, 'WARN');
+          const missingSku = !product.sku || product.sku.trim() === '';
+          const missingName = !product.name || product.name.trim() === '';
+          
+          if (missingSku || missingName) {
+            let skipReason;
+            if (missingSku && missingName) {
+              skipReason = 'Missing both SKU and name';
+            } else if (missingSku) {
+              skipReason = `Missing SKU (name: "${product.name}")`;
+            } else {
+              skipReason = `Missing name (SKU: "${product.sku}")`;
+            }
+            
+            log(`Skipping product at row ${CONFIG.startRow + idx}: ${skipReason}`, 'WARN');
             stats.skipped++;
             return;
           }
@@ -790,16 +804,24 @@ async function migrateProducts() {
 
         // Progress log ogni 10 prodotti
         if ((idx + 1) % 10 === 0) {
-          log(`Progress: ${idx + 1}/${stats.total} processed (${stats.created} created, ${stats.updated} updated)`);
+          const timingStats = timer.getTimingStats(10);
+          log(`Progress: ${idx + 1}/${stats.total} processed (${stats.created} created, ${stats.updated} updated) | Lap: ${timingStats.lapTimeFormatted} (${timingStats.avgTimePerItem}ms/product) | Total: ${timingStats.totalElapsedFormatted}`);
+          
+          // Update lap timer for next interval
+          timer.updateLapTimer();
         }
       })
     );
 
     await Promise.all(tasks);
 
-    // Final stats
+    // Final stats with elapsed time
+    const finalElapsedTime = timer.getElapsedTime();
+    const finalElapsedFormatted = timer.getFormattedElapsedTime();
+    
     log('=== Migration Complete ===');
     log(`Total: ${stats.total}, Success: ${stats.success} (${stats.created} created, ${stats.updated} updated), Failed: ${stats.failed}, Skipped: ${stats.skipped}`);
+    log(`Elapsed time: ${finalElapsedFormatted} (${finalElapsedTime}ms)`);
     
     if (stats.failed > 0) {
       log('⚠ Some products failed to migrate. Check the log for details.', 'WARN');

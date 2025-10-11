@@ -1,0 +1,58 @@
+version: "3"
+
+vars:
+  CSV_DIR: '{{ .CSV_DIR | default "./data" }}'
+  CSV_FILE: 
+    sh: find {{ .CSV_DIR }} -maxdepth 1 -type f -iname "export_catalog_product_*.csv" | head -1
+  CSV_FILE_TEST: '{{ .CSV_FILE_TEST | default (print .CSV_DIR "/products_test.csv") }}'
+
+tasks:
+
+  csv:search:
+    desc: "Search for a term in Magento CSV files and extract complete rows"
+    summary: |
+      Search for a specific term in Magento product CSV files.
+      Properly handles multi-line CSV content (e.g., HTML descriptions).
+      
+      Usage: go-task csv:search TERM=BIX.A-REM-70S
+      Usage: go-task csv:search TERM=DAA.100358
+      Usage: go-task csv:search TERM=DAA.100358 CSV_FILE=./export_catalog_product_20251010_200348.csv
+      Usage: go-task csv:search TERM=SKU123 > output.csv
+    vars:
+      TERM: '{{.TERM | default "BIX.A-REM-70S"}}'
+    silent: true
+    cmds:
+      - |
+        python3 -c "import csv,sys,io; [csv.writer(sys.stdout).writerow(row) for file in sys.argv[1:] for row in csv.reader(open(file)) if '{{.TERM}}' in ','.join(row)]" {{ .CSV_FILE }} 2>/dev/null || true
+
+  csv:search-sku:
+    desc: "Search for exact SKU match in the SKU column only"
+    summary: |
+      Search for an exact SKU match in the SKU column of Magento CSV files.
+      More precise than general search - only matches the SKU field.
+      
+      Usage: go-task csv:search-sku SKU=BIX.A-REM-70S
+      Usage: go-task csv:search-sku SKU=DAA.100358
+      Usage: go-task csv:search-sku SKU=SKU123 > output.csv
+    vars:
+      SKU: '{{.SKU | default "BIX.A-REM-70S"}}'
+    silent: true
+    cmds:
+      - |
+        python3 -c "import csv,sys,io; [csv.writer(sys.stdout).writerow(row) for file in sys.argv[1:] for row in csv.reader(open(file)) if len(row) > 0 and row[0] == '{{.SKU}}']" {{ .CSV_FILE }} 2>/dev/null || true
+
+  csv:extract-test-products:
+    vars:
+      SKUS: >
+        BIX.A-REM-70S
+        DAA.100358
+        GLK.33781
+        WLK.WALGWP-SLCR2-BT
+    cmds:
+      - head -n1 {{ .CSV_FILE }} > {{ .CSV_FILE_TEST }}
+      - for: { var: SKUS }
+        cmd: python3 -c "import csv,sys,io; [csv.writer(sys.stdout).writerow(row) for file in sys.argv[1:] for row in csv.reader(open(file)) if len(row) > 0 and row[0] == '{{ .ITEM }}']" {{ .CSV_FILE }} 2>/dev/null 1>> {{ .CSV_FILE_TEST }}
+
+  migration:migrate:
+    cmds:
+      - docker compose up

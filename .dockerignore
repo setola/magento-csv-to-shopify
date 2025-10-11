@@ -11,3 +11,5 @@ README.md
 docker-compose.yml
 compose.yml
 .DS_Store
+utils
+data

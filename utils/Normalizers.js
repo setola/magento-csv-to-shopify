@@ -49,6 +49,7 @@ export default class Normalizers {
       'italia': 'IT',
       'united states': 'US',
       'usa': 'US',
+      'stati uniti': 'US',
       'america': 'US',
       'germany': 'DE',
       'germania': 'DE',
@@ -85,6 +86,7 @@ export default class Normalizers {
       'polonia': 'PL',
       'czech republic': 'CZ',
       'repubblica ceca': 'CZ',
+      'cechia': 'CZ',
       'turkey': 'TR',
       'turchia': 'TR',
       'israel': 'IL',
@@ -172,10 +174,13 @@ export default class Normalizers {
     categoryPaths.forEach(path => {
       if (!path) return;
       
-      // Rimuovi "Root" e split per '/' per ottenere i segmenti
-      const segments = path
+      // Handle escaped forward slashes and split per '/' per ottenere i segmenti
+      // First, temporarily replace escaped slashes to avoid splitting on them
+      const tempPath = path.replace(/\\\//g, '___ESCAPED_SLASH___');
+      const segments = tempPath
         .split('/')
         .map(segment => segment.trim())
+        .map(segment => segment.replace(/___ESCAPED_SLASH___/g, ' & ')) // Convert \/ to " & "
         .filter(segment => segment && segment !== 'Root'); // Rimuovi vuoti e "Root"
       
       // Aggiungi ogni segmento al set (evita duplicati automaticamente)
