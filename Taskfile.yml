@@ -11,7 +11,7 @@ tasks:
 
   csv:count-rows:
     cmds:
-      - python3 utils/count_csv_rows.py {{ .CSV_FILE }}
+      - docker compose run --rm migration node utils/CSVRowCounter.js {{ .CSV_FILE }}
 
   csv:search:
     desc: "Search for a term in Magento CSV files and extract complete rows"
@@ -47,6 +47,54 @@ tasks:
       - |
         python3 -c "import csv,sys,io; [csv.writer(sys.stdout).writerow(row) for file in sys.argv[1:] for row in csv.reader(open(file)) if len(row) > 0 and row[0] == '{{.SKU}}']" {{ .CSV_FILE }} 2>/dev/null || true
 
+  csv:distinct:
+    desc: "Extract distinct values from a CSV column with analysis options"
+    summary: |
+      Extract distinct values from a specified column in Magento CSV files.
+      Supports counting, sorting, and output to files.
+      
+      Usage Examples:
+      go-task csv:distinct COLUMN=product_type
+      go-task csv:distinct COLUMN=categories COUNT=true SORT=true
+      go-task csv:distinct COLUMN=sku OUTPUT=sku_list.txt
+      go-task csv:distinct -- --list-columns
+      go-task csv:distinct COLUMN=manufacturer CSV_FILE=./custom.csv
+      
+      Options:
+      COLUMN: Column name to analyze (required unless using --list-columns)
+      CSV_FILE: CSV file path (optional, defaults to auto-discovery)
+      COUNT: Show count of each value (true/false, default: false)
+      SORT: Sort output alphabetically (true/false, default: false) 
+      OUTPUT: Save results to file instead of stdout
+      
+      Special usage:
+      go-task csv:distinct -- --list-columns    # List all available columns
+      go-task csv:distinct -- --help           # Show detailed help
+    vars:
+      COLUMN: '{{ .COLUMN | default "" }}'
+      CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
+      COUNT_FLAG: '{{ if eq .COUNT "true" }}--count{{ end }}'
+      SORT_FLAG: '{{ if eq .SORT "true" }}--sort{{ end }}'
+      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
+      ARGS: '{{ .CLI_ARGS | default "" }}'
+    cmds:
+      - |
+        if [ "{{ .ARGS }}" != "" ]; then
+          # Pass through CLI args directly (for --list-columns, --help, etc.)
+          # Use dummy column name and main CSV file for --list-columns
+          CSV_ARG="{{ .CSV_FILE }}"
+          docker compose run --rm migration node utils/DistinctValueExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+        elif [ "{{ .COLUMN }}" = "" ]; then
+          echo "Error: COLUMN parameter is required"
+          echo "Usage: go-task csv:distinct COLUMN=column_name [options]"
+          echo "Or use: go-task csv:distinct -- --list-columns"
+          exit 1
+        else
+          # Build command with parameters
+          CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
+          docker compose run --rm migration node utils/DistinctValueExtractor.js "{{ .COLUMN }}" "$CSV_ARG" {{ .COUNT_FLAG }} {{ .SORT_FLAG }} {{ .OUTPUT_FLAG }}
+        fi
+
   csv:extract-test-products:
     vars:
       SKUS: >
@@ -62,6 +110,44 @@ tasks:
   migration:migrate:
     cmds:
       - docker compose up
+  
+  migration:customers:
+    desc: "Run customer migration using Docker (without compose)"
+    summary: |
+      Run customer migration directly with Docker without using docker compose.
+      Uses the NODE_IMAGE environment variable or defaults to node:alpine.
+      
+      Usage:
+      go-task migration:customers-docker
+      go-task migration:customers-docker NODE_IMAGE=node:18-alpine
+      go-task migration:customers-docker START_ROW=100 BATCH_SIZE=50
+      
+      Environment variables:
+      NODE_IMAGE: Docker image to use (default: node:alpine)
+      START_ROW: Starting row for batch processing
+      BATCH_SIZE: Number of customers per batch
+      All other environment variables from .env file are passed through
+    vars:
+      NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
+      DOCKER_LOGS_DIR: '{{ .DOCKER_LOGS_DIR | default "/app/logs" }}'
+    cmds:
+      - |
+        # Create logs directory if it doesn't exist
+        mkdir -p {{ .LOGS_DIR }}
+        
+        # Run customer migration in Docker
+        docker run --rm -it \
+          --name magento-shopify-customer-migration \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          --env-file .env \
+          {{ if .START_ROW }}--env "START_ROW={{ .START_ROW }}" {{ end }}\
+          {{ if .BATCH_SIZE }}--env "BATCH_SIZE={{ .BATCH_SIZE }}" {{ end }}\
+          {{ if .MAX_CONCURRENT }}--env "MAX_CONCURRENT={{ .MAX_CONCURRENT }}" {{ end }}\
+          {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
+          {{ if .CUSTOMERS_CSV_PATH }}--env "CUSTOMERS_CSV_PATH={{ .CUSTOMERS_CSV_PATH }}" {{ end }}\
+          {{ .NODE_IMAGE }} \
+          npm run migrate-customers
   
   migration:progress:
     cmds:

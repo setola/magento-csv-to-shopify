@@ -21,6 +21,7 @@
   "dependencies": {
     "papaparse": "^5.4.1",
     "dotenv": "^16.4.5",
-    "p-limit": "^5.0.0"
+    "p-limit": "^5.0.0",
+    "glob": "^10.3.10"
   }
 }
