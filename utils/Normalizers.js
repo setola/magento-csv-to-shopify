@@ -395,6 +395,132 @@ export default class Normalizers {
     return `${baseUrl}${mediaPath}/${imagePath}`;
   }
 
+  // Normalizza prezzo da stringa Magento a formato Shopify decimal
+  // Input: price string (può contenere simboli valuta, spazi, virgole)
+  // Output: string in formato decimal (es. "19.99") o null se non valido
+  normalizePrice(priceInput) {
+    if (!priceInput || priceInput.toString().trim() === '') {
+      return null;
+    }
+    
+    const priceStr = priceInput.toString().trim();
+    
+    // Rimuovi simboli di valuta comuni e spazi
+    // Supporta: €, $, £, ¥, €, EUR, USD, GBP, etc.
+    let cleanPrice = priceStr
+      .replace(/[€$£¥₹₽₴₪₦₡₵₸₻₼₾₿]/g, '') // simboli di valuta
+      .replace(/\b(EUR|USD|GBP|JPY|CNY|CAD|AUD|CHF|SEK|NOK|DKK|PLN|CZK|HUF|RUB|TRY|ILS|INR|BRL|MXN|KRW|ZAR|SGD|HKD|NZD|THB|MYR|IDR|PHP|VND)\b/gi, '') // codici valuta ISO
+      .replace(/\s+/g, '') // spazi
+      .trim();
+    
+    // Se vuoto dopo pulizia, ritorna null
+    if (cleanPrice === '') {
+      return null;
+    }
+    
+    // Gestisci formati con virgola come separatore decimale (formato europeo)
+    // Es: "19,99" → "19.99", "1.234,56" → "1234.56"
+    if (cleanPrice.includes(',')) {
+      // Se ci sono sia punto che virgola, assume formato europeo (punto = migliaia, virgola = decimali)
+      if (cleanPrice.includes('.') && cleanPrice.includes(',')) {
+        // Verifica se è formato europeo (1.234,56) o americano (1,234.56)
+        const lastCommaPos = cleanPrice.lastIndexOf(',');
+        const lastDotPos = cleanPrice.lastIndexOf('.');
+        
+        if (lastCommaPos > lastDotPos) {
+          // Formato europeo: rimuovi punti (migliaia) e converti virgola in punto (decimali)
+          cleanPrice = cleanPrice.replace(/\./g, '').replace(',', '.');
+        } else {
+          // Formato americano: rimuovi virgole (migliaia)
+          cleanPrice = cleanPrice.replace(/,/g, '');
+        }
+      } else {
+        // Solo virgola presente
+        // Se ci sono 3 o più cifre dopo la virgola, probabilmente è separatore migliaia
+        // Se ci sono 1-2 cifre, probabilmente è separatore decimale
+        const parts = cleanPrice.split(',');
+        if (parts.length === 2 && parts[1].length <= 2) {
+          // Probabilmente decimale: "19,99" → "19.99"
+          cleanPrice = cleanPrice.replace(',', '.');
+        } else {
+          // Probabilmente migliaia: "1,234" → "1234"
+          cleanPrice = cleanPrice.replace(/,/g, '');
+        }
+      }
+    }
+    
+    // Rimuovi eventuali punti extra se sono separatori di migliaia
+    // Es: "1.234.567.89" dovrebbe diventare "1234567.89"
+    const dotCount = (cleanPrice.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      // Mantieni solo l'ultimo punto se ha 1-2 cifre dopo (probabilmente decimali)
+      const parts = cleanPrice.split('.');
+      if (parts.length > 2 && parts[parts.length - 1].length <= 2) {
+        const lastPart = parts.pop();
+        cleanPrice = parts.join('') + '.' + lastPart;
+      } else {
+        // Rimuovi tutti i punti se non sembrano separatori decimali
+        cleanPrice = cleanPrice.replace(/\./g, '');
+      }
+    }
+    
+    // Converti a numero e valida
+    const numericPrice = parseFloat(cleanPrice);
+    
+    if (isNaN(numericPrice) || numericPrice < 0) {
+      this.log(`Warning: Invalid price value "${priceStr}" could not be normalized`, 'WARN');
+      return null;
+    }
+    
+    // Ritorna formato Shopify decimal con 2 decimali
+    return numericPrice.toFixed(2);
+  }
+
+  // Determina il prezzo corretto e compareAtPrice basandosi su price e special_price
+  // Logica: se special_price esiste ed è minore di price, allora special_price diventa il prezzo principale
+  // e price diventa compareAtPrice ("era" prezzo)
+  // Returns: { price: string, compareAtPrice: string|null }
+  determinePricing() {
+    const basePrice = this.normalizePrice(this.productData.price);
+    const specialPrice = this.normalizePrice(this.productData.special_price);
+    
+    // Se non abbiamo un prezzo base, usa 0
+    if (!basePrice) {
+      this.log(`Warning: No base price found for product, using 0.00`, 'WARN');
+      return {
+        price: '0.00',
+        compareAtPrice: null
+      };
+    }
+    
+    // Se non c'è special_price, usa solo il prezzo base
+    if (!specialPrice) {
+      return {
+        price: basePrice,
+        compareAtPrice: null
+      };
+    }
+    
+    const basePriceNum = parseFloat(basePrice);
+    const specialPriceNum = parseFloat(specialPrice);
+    
+    // Se special_price è minore del prezzo base, è un vero sconto
+    if (specialPriceNum < basePriceNum) {
+      this.log(`  ↳ Special price ${specialPrice} < base price ${basePrice}, applying discount`, 'DEBUG');
+      return {
+        price: specialPrice,        // Il prezzo scontato diventa il prezzo principale
+        compareAtPrice: basePrice   // Il prezzo originale diventa "era"
+      };
+    } else {
+      // Se special_price è uguale o maggiore del prezzo base, ignora special_price
+      this.log(`  ↳ Special price ${specialPrice} >= base price ${basePrice}, ignoring special price`, 'DEBUG');
+      return {
+        price: basePrice,
+        compareAtPrice: null
+      };
+    }
+  }
+
   // Normalizza e deduplica immagini da dati prodotto Magento
   // Ritorna array di oggetti { originalSource: string, alt: string, mediaContentType: string }
   normalizeImages() {

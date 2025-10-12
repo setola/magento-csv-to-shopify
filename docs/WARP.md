@@ -50,11 +50,29 @@ docker compose run --rm migration sh
 # Count rows in CSV files
 go-task csv:count-rows
 
+# List available columns
+go-task csv:extract-by-column -- --list-columns
+
 # Search for specific products
 go-task csv:search TERM=BIX.A-REM-70S
 
 # Search by exact SKU
 go-task csv:search-sku SKU=DAA.100358
+
+# Extract products by content (original functionality)
+go-task csv:extract-by-column COLUMN=description
+
+# Extract products by exact value
+go-task csv:extract-by-value COLUMN=status VALUE=Enabled
+
+# Extract products by substring
+go-task csv:extract-by-contains COLUMN=name SUBSTRING=iPhone
+
+# Case-insensitive matching
+go-task csv:extract-by-contains COLUMN=manufacturer SUBSTRING=apple CASE_INSENSITIVE=true
+
+# Get distinct values from columns
+go-task csv:distinct COLUMN=product_type COUNT=true SORT=true
 
 # Extract test products to separate CSV
 go-task csv:extract-test-products
@@ -106,6 +124,16 @@ The codebase follows a **modular utility-based architecture**:
 - **`Logger.js`**: Structured logging to both console and files
 - **`TimeTracker.js`**: Performance monitoring and elapsed time tracking
 
+### CSV Analysis Utilities
+
+- **`ColumnContentExtractor.js`**: Advanced CSV filtering with three extraction modes:
+  - Content-based: Extract rows where column has any non-empty content
+  - Exact value matching: Extract rows where column equals specific value
+  - Substring matching: Extract rows where column contains substring
+  - Supports case-insensitive matching, batch processing, and file output
+- **`DistinctValueExtractor.js`**: Extract unique values from CSV columns with counting and sorting
+- **`CSVRowCounter.js`**: Simple row counting utility for CSV files
+
 ### Data Flow
 1. **CSV Parsing**: Load and validate Magento export data
 2. **Normalization**: Transform Magento fields to Shopify format
@@ -141,6 +169,7 @@ DELAY_MS=500         # Delay between requests (increase if rate limited)
 
 ### Products Migration
 - **Field Mapping**: Automated mapping from Magento CSV to Shopify product structure
+- **Price Handling**: Intelligent pricing logic - if `special_price` < `price`, uses `special_price` as main price and `price` as compareAtPrice ("Was" price)
 - **Image Handling**: Constructs full image URLs from relative Magento paths
 - **Inventory Management**: Sets quantities and enables/disables inventory tracking
 - **SEO Migration**: Transfers meta titles, descriptions, and URL handles

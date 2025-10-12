@@ -95,6 +95,146 @@ tasks:
           docker compose run --rm migration node utils/DistinctValueExtractor.js "{{ .COLUMN }}" "$CSV_ARG" {{ .COUNT_FLAG }} {{ .SORT_FLAG }} {{ .OUTPUT_FLAG }}
         fi
 
+  csv:extract-by-column:
+    desc: "Extract CSV rows where a specified column has content (non-empty)"
+    summary: |
+      Extract rows from CSV files where a specified column contains content (non-empty values).
+      Useful for filtering products based on specific fields like descriptions, categories, etc.
+      
+      Usage Examples:
+      go-task csv:extract-by-column COLUMN=description
+      go-task csv:extract-by-column COLUMN=short_description OUTPUT=products_with_descriptions.csv
+      go-task csv:extract-by-column COLUMN=categories CSV_FILE=./custom.csv COUNT_ONLY=true
+      go-task csv:extract-by-column -- --list-columns
+      go-task csv:extract-by-column -- --help
+      
+      Options:
+      COLUMN: Column name to check for content (required unless using --list-columns)
+      CSV_FILE: CSV file path (optional, defaults to auto-discovery)
+      OUTPUT: Save filtered results to file instead of stdout
+      COUNT_ONLY: Only show count of matching rows (true/false, default: false)
+      NO_HEADER: Do not include header row in output (true/false, default: false)
+      
+      Special usage:
+      go-task csv:extract-by-column -- --list-columns  # List all available columns
+      go-task csv:extract-by-column -- --help         # Show detailed help
+    vars:
+      COLUMN: '{{ .COLUMN | default "" }}'
+      CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
+      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
+      COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
+      NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
+      ARGS: '{{ .CLI_ARGS | default "" }}'
+    cmds:
+      - |
+        if [ "{{ .ARGS }}" != "" ]; then
+          # Pass through CLI args directly (for --list-columns, --help, etc.)
+          # Use dummy column name and main CSV file for --list-columns
+          CSV_ARG="{{ .CSV_FILE }}"
+          docker compose run --rm migration node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+        elif [ "{{ .COLUMN }}" = "" ]; then
+          echo "Error: COLUMN parameter is required"
+          echo "Usage: go-task csv:extract-by-column COLUMN=column_name [options]"
+          echo "Or use: go-task csv:extract-by-column -- --list-columns"
+          exit 1
+        else
+          # Build command with parameters
+          CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
+          docker compose run --rm migration node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }}
+        fi
+
+  csv:extract-by-value:
+    desc: "Extract CSV rows where a column equals a specific value"
+    summary: |
+      Extract rows from CSV files where a specified column equals an exact value.
+      Supports case-insensitive matching and can output to files.
+      
+      Usage Examples:
+      go-task csv:extract-by-value COLUMN=status VALUE=Enabled
+      go-task csv:extract-by-value COLUMN=product_type VALUE="simple" OUTPUT=simple_products.csv
+      go-task csv:extract-by-value COLUMN=manufacturer VALUE="Apple" CASE_INSENSITIVE=true COUNT_ONLY=true
+      go-task csv:extract-by-value -- --list-columns
+      
+      Options:
+      COLUMN: Column name to check (required unless using --list-columns)
+      VALUE: Exact value to match (required unless using --list-columns)
+      CSV_FILE: CSV file path (optional, defaults to auto-discovery)
+      OUTPUT: Save filtered results to file instead of stdout
+      COUNT_ONLY: Only show count of matching rows (true/false, default: false)
+      NO_HEADER: Do not include header row in output (true/false, default: false)
+      CASE_INSENSITIVE: Make matching case-insensitive (true/false, default: false)
+    vars:
+      COLUMN: '{{ .COLUMN | default "" }}'
+      VALUE: '{{ .VALUE | default "" }}'
+      CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
+      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
+      COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
+      NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
+      CASE_INSENSITIVE_FLAG: '{{ if eq .CASE_INSENSITIVE "true" }}--case-insensitive{{ end }}'
+      ARGS: '{{ .CLI_ARGS | default "" }}'
+    cmds:
+      - |
+        if [ "{{ .ARGS }}" != "" ]; then
+          # Pass through CLI args directly (for --list-columns, --help, etc.)
+          CSV_ARG="{{ .CSV_FILE }}"
+          docker compose run --rm migration node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+        elif [ "{{ .COLUMN }}" = "" ] || [ "{{ .VALUE }}" = "" ]; then
+          echo "Error: Both COLUMN and VALUE parameters are required"
+          echo "Usage: go-task csv:extract-by-value COLUMN=column_name VALUE=target_value [options]"
+          echo "Or use: go-task csv:extract-by-value -- --list-columns"
+          exit 1
+        else
+          # Build command with parameters
+          CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
+          docker compose run --rm migration node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --value "{{ .VALUE }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
+        fi
+
+  csv:extract-by-contains:
+    desc: "Extract CSV rows where a column contains a specific substring"
+    summary: |
+      Extract rows from CSV files where a specified column contains a substring.
+      Supports case-insensitive matching and can output to files.
+      
+      Usage Examples:
+      go-task csv:extract-by-contains COLUMN=name SUBSTRING=iPhone
+      go-task csv:extract-by-contains COLUMN=description SUBSTRING="wireless" OUTPUT=wireless_products.csv
+      go-task csv:extract-by-contains COLUMN=categories SUBSTRING="electronics" CASE_INSENSITIVE=true COUNT_ONLY=true
+      go-task csv:extract-by-contains -- --list-columns
+      
+      Options:
+      COLUMN: Column name to check (required unless using --list-columns)
+      SUBSTRING: Substring to search for (required unless using --list-columns)
+      CSV_FILE: CSV file path (optional, defaults to auto-discovery)
+      OUTPUT: Save filtered results to file instead of stdout
+      COUNT_ONLY: Only show count of matching rows (true/false, default: false)
+      NO_HEADER: Do not include header row in output (true/false, default: false)
+      CASE_INSENSITIVE: Make matching case-insensitive (true/false, default: false)
+    vars:
+      COLUMN: '{{ .COLUMN | default "" }}'
+      SUBSTRING: '{{ .SUBSTRING | default "" }}'
+      CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
+      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
+      COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
+      NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
+      CASE_INSENSITIVE_FLAG: '{{ if eq .CASE_INSENSITIVE "true" }}--case-insensitive{{ end }}'
+      ARGS: '{{ .CLI_ARGS | default "" }}'
+    cmds:
+      - |
+        if [ "{{ .ARGS }}" != "" ]; then
+          # Pass through CLI args directly (for --list-columns, --help, etc.)
+          CSV_ARG="{{ .CSV_FILE }}"
+          docker compose run --rm migration node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+        elif [ "{{ .COLUMN }}" = "" ] || [ "{{ .SUBSTRING }}" = "" ]; then
+          echo "Error: Both COLUMN and SUBSTRING parameters are required"
+          echo "Usage: go-task csv:extract-by-contains COLUMN=column_name SUBSTRING=search_text [options]"
+          echo "Or use: go-task csv:extract-by-contains -- --list-columns"
+          exit 1
+        else
+          # Build command with parameters
+          CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
+          docker compose run --rm migration node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --contains "{{ .SUBSTRING }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
+        fi
+
   csv:extract-test-products:
     vars:
       SKUS: >
@@ -118,9 +258,9 @@ tasks:
       Uses the NODE_IMAGE environment variable or defaults to node:alpine.
       
       Usage:
-      go-task migration:customers-docker
-      go-task migration:customers-docker NODE_IMAGE=node:18-alpine
-      go-task migration:customers-docker START_ROW=100 BATCH_SIZE=50
+      go-task migration:customers
+      go-task migration:customers NODE_IMAGE=node:18-alpine
+      go-task migration:customers START_ROW=100 BATCH_SIZE=50
       
       Environment variables:
       NODE_IMAGE: Docker image to use (default: node:alpine)
@@ -148,6 +288,44 @@ tasks:
           {{ if .CUSTOMERS_CSV_PATH }}--env "CUSTOMERS_CSV_PATH={{ .CUSTOMERS_CSV_PATH }}" {{ end }}\
           {{ .NODE_IMAGE }} \
           npm run migrate-customers
+  
+  migration:products:
+    desc: "Run product migration using Docker (without compose)"
+    summary: |
+      Run product migration directly with Docker without using docker compose.
+      Uses the NODE_IMAGE environment variable or defaults to node:alpine.
+      
+      Usage:
+      go-task migration:products
+      go-task migration:products NODE_IMAGE=node:18-alpine
+      go-task migration:products START_ROW=100 BATCH_SIZE=500
+      
+      Environment variables:
+      NODE_IMAGE: Docker image to use (default: node:alpine)
+      START_ROW: Starting row for batch processing
+      BATCH_SIZE: Number of products per batch
+      All other environment variables from .env file are passed through
+    vars:
+      NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
+      DOCKER_LOGS_DIR: '{{ .DOCKER_LOGS_DIR | default "/app/logs" }}'
+    cmds:
+      - |
+        # Create logs directory if it doesn't exist
+        mkdir -p {{ .LOGS_DIR }}
+        
+        # Run product migration in Docker
+        docker run --rm -it \
+          --name magento-shopify-product-migration \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          --env-file .env \
+          {{ if .START_ROW }}--env "START_ROW={{ .START_ROW }}" {{ end }}\
+          {{ if .BATCH_SIZE }}--env "BATCH_SIZE={{ .BATCH_SIZE }}" {{ end }}\
+          {{ if .MAX_CONCURRENT }}--env "MAX_CONCURRENT={{ .MAX_CONCURRENT }}" {{ end }}\
+          {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
+          {{ if .CSV_PATH }}--env "CSV_PATH={{ .CSV_PATH }}" {{ end }}\
+          {{ .NODE_IMAGE }} \
+          npm run migrate-products
   
   migration:progress:
     cmds:

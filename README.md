@@ -1,383 +1,180 @@
-# Migrazione Magento 2 → Shopify
+# Magento 2 → Shopify Migration Suite
 
-Suite completa per migrare dati da Magento 2 a Shopify utilizzando le GraphQL Admin API.
+Complete suite for migrating data from Magento 2 to Shopify using GraphQL Admin API.
 
-## 📦 Strumenti di Migrazione
+## 🎯 Overview
 
-Questa suite include due strumenti specializzati:
+This is a **Magento 2 to Shopify migration suite** built in Node.js that provides specialized migration tools using Shopify's GraphQL Admin API to migrate products and customers from Magento 2 CSV exports to Shopify stores.
 
-- **`product-migrate.js`**: Migrazione prodotti con varianti, immagini, inventario
-- **`customer-migrate.js`**: Migrazione clienti con indirizzi, telefoni, consensi marketing
+### Core Components
 
-Entrambi condividono utilities comuni per garantire prestazioni ottimali e comportamento coerente.
+- **`product-migrate.js`**: Migrates products with variants, images, inventory, and SEO data
+- **`customer-migrate.js`**: Migrates customers with addresses, phone numbers, and marketing consent
+- **Utils library** (`utils/`): Shared utilities for Shopify API client, CSV parsing, rate limiting, logging, and data normalization
 
-## 🚀 Caratteristiche
+## 🚀 Quick Start
 
-- ✅ Utilizza GraphQL Admin API di Shopify (non REST deprecate)
-- ✅ Gestione intelligente dei rate limits
-- ✅ Configurazione batch (start row e numero prodotti)
-- ✅ **Crea E aggiorna prodotti esistenti** (usa SKU come chiave)
-- ✅ Esecuzione in Docker con Node.js 22
-- ✅ Variabili sensibili in .env
-- ✅ Logging dettagliato per debug
-- ✅ Supporto per immagini multiple
-- ✅ Mapping automatico attributi Magento → Shopify
+### Prerequisites
 
-## 📋 Prerequisiti
+1. Docker and Docker Compose installed
+2. CSV exported from Magento 2
+3. Shopify Admin API access with required scopes:
+   - `write_products` / `read_products`
+   - `write_inventory` 
+   - `write_customers` / `read_customers`
 
-1. Docker e Docker Compose installati
-2. CSV esportato da Magento 2
-3. Accesso Admin API di Shopify con i seguenti scopes:
-   - `write_products`
-   - `read_products`
-   - `write_inventory`
+### Setup
 
-## 🔧 Configurazione
-
-### 1. Ottieni le credenziali Shopify
-
-1. Nel pannello Shopify: **Settings → Apps and sales channels → Develop apps**
-2. Crea una nuova app privata
-3. Configura gli scopes necessari
-4. Genera l'Admin API access token
-
-### 2. Trova il Location ID
-
-Esegui questa query GraphQL nel tuo Shopify Admin:
-
-```graphql
-{
-  locations(first: 10) {
-    edges {
-      node {
-        id
-        name
-      }
-    }
-  }
-}
-```
-
-### 3. Configura le variabili d'ambiente
-
-Copia `.env.example` in `.env` e compila:
-
+1. **Clone and setup environment:**
 ```bash
 cp .env.example .env
-nano .env
+# Edit .env with your Shopify credentials and Magento URLs
+mkdir -p logs
 ```
 
+2. **Configure environment variables:**
 ```env
-# Shopify
-SHOPIFY_STORE_URL=tuo-negozio.myshopify.com
+# Required
+SHOPIFY_STORE_URL=your-store.myshopify.com
 SHOPIFY_ACCESS_TOKEN=shpat_xxxxxxxxxxxxxxxxxxxxx
-SHOPIFY_LOCATION_ID=gid://shopify/Location/12345678
+SHOPIFY_LOCATION_ID=gid://shopify/Location/xxxxxxxxxxxxx
+MAGENTO_BASE_URL=https://www.your-magento-store.com
 
-# Magento - IMPORTANTE per le immagini!
-MAGENTO_BASE_URL=https://www.tuosito.com
-MAGENTO_MEDIA_PATH=/pub/media/catalog/product
-
-# CSV e Batch
+# CSV files
 CSV_PATH=./products.csv
+CUSTOMERS_CSV_PATH=./data/export_customers.csv
+
+# Batch processing
 START_ROW=0
 BATCH_SIZE=100
-
-# Rate Limiting
-MAX_CONCURRENT=2
-DELAY_MS=500
-
-LOG_FILE=./logs/migration.log
 ```
 
-**⚠️ Importante per le Immagini:**
-- `MAGENTO_BASE_URL`: URL completo del tuo store Magento (es: `https://www.planetshooters.com`)
-- `MAGENTO_MEDIA_PATH`: Percorso delle immagini prodotto (default: `/pub/media/catalog/product`)
-- Gli URL delle immagini nel CSV Magento sono relativi (es: `/2/2/220_a_rem_70s.jpg`)
-- Lo script costruirà automaticamente l'URL completo: `https://www.tuosito.com/pub/media/catalog/product/2/2/220_a_rem_70s.jpg`
+### Run Migration
 
-### 4. Prepara il CSV
-
-Posiziona il tuo file CSV esportato da Magento nella root del progetto:
-
+#### Products Migration
 ```bash
-products.csv
-```
+# Using Docker (recommended)
+docker compose up
 
-## 🏃 Esecuzione
-
-### Migrazione Prodotti
-
-#### Opzione 1: Con Docker (Consigliato)
-
-```bash
-# 1. Verifica che tutti i file siano presenti
-ls -la products.csv .env product-migrate.js package.json
-
-# 2. Crea la directory logs se non esiste
-mkdir -p logs
-
-# 3. Build dell'immagine (rimuovi cache se necessario)
-docker-compose build --no-cache
-
-# 4. Esegui la migrazione e vedi i log in tempo reale
-docker-compose up
-
-# 5. Per eseguire in background e seguire i log
-docker-compose up -d
-docker-compose logs -f
-
-# 6. Per fermare il container
-docker-compose down
-```
-
-**Troubleshooting Docker:**
-
-Se il container esce immediatamente:
-```bash
-# Verifica che .env sia configurato correttamente
-cat .env
-
-# Verifica che il CSV esista
-ls -lh products.csv
-
-# Esegui il container in modalità interattiva per vedere gli errori
-docker-compose run --rm migration node product-migrate.js
-
-# Verifica i log dell'ultima esecuzione
-docker-compose logs migration
-```
-
-#### Opzione 2: Senza Docker
-
-```bash
-# Installa dipendenze
-npm install
-
-# Esegui migrazione prodotti
+# Using npm
 npm run migrate-products
 ```
 
-### Migrazione Clienti
-
-Per la migrazione clienti, consulta la documentazione dettagliata: [`CUSTOMER_MIGRATION.md`](./CUSTOMER_MIGRATION.md)
-
-#### Esecuzione Rapida
-
+#### Customer Migration
 ```bash
-# Con Docker
+# Using Docker
 docker compose run --rm migration npm run migrate-customers
 
-# Senza Docker
+# Using npm  
 npm run migrate-customers
 ```
 
-#### Configurazione CSV Clienti
+## 🔧 CSV Analysis Tools
 
-```env
-# Aggiungi al tuo .env
-CUSTOMERS_CSV_PATH=./data/export_customers.csv
-BATCH_SIZE=50  # Batch più piccoli per i clienti
-```
+This suite includes powerful CSV analysis tools accessible via Task runner:
 
-## 🔄 Aggiornamento Prodotti Esistenti
-
-Lo script è **idempotente**: puoi eseguirlo più volte sugli stessi prodotti!
-
-### Come Funziona
-
-1. **Prima esecuzione**: Crea i prodotti nuovi su Shopify
-2. **Esecuzioni successive**: 
-   - Cerca ogni prodotto per SKU
-   - Se esiste → **aggiorna** tutti i dati (titolo, descrizione, prezzo, immagini, inventario)
-   - Se non esiste → crea nuovo prodotto
-
-### Casi d'Uso
-
-**Aggiornare prezzi/inventario dopo modifiche in Magento:**
+### Basic Operations
 ```bash
-# Esegui di nuovo lo stesso batch
-START_ROW=0
-BATCH_SIZE=500
-docker-compose up
+# Count rows in CSV files
+go-task csv:count-rows
+
+# List available columns
+go-task csv:extract-by-column -- --list-columns
+
+# Search for specific products
+go-task csv:search TERM=BIX.A-REM-70S
 ```
 
-**Re-importare prodotti con errori:**
+### Advanced Filtering
 ```bash
-# Controlla il log per vedere quali SKU hanno fallito
-grep "✗ Failed" logs/migration.log
+# Extract products by exact status value
+go-task csv:extract-by-value COLUMN=status VALUE=Enabled
 
-# Crea un CSV con solo quei prodotti e re-importa
+# Find products containing specific text
+go-task csv:extract-by-contains COLUMN=name SUBSTRING=iPhone
+
+# Case-insensitive search
+go-task csv:extract-by-contains COLUMN=manufacturer SUBSTRING=apple CASE_INSENSITIVE=true
 ```
 
-**Sincronizzazione periodica:**
+## 📊 Key Features
+
+- ✅ **GraphQL-first**: Uses modern Shopify GraphQL Admin API (not deprecated REST)
+- ✅ **Idempotent Operations**: Safe to run multiple times (creates and updates)
+- ✅ **Intelligent Rate Limiting**: Automatic Shopify API rate limit handling
+- ✅ **Batch Processing**: Handle large datasets efficiently
+- ✅ **Docker Support**: Containerized execution for consistency
+- ✅ **Comprehensive Logging**: Detailed progress tracking and error reporting
+- ✅ **CSV Analysis Tools**: Advanced filtering and data exploration capabilities
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[Migration Guide](./docs/MIGRATION_SCRIPTS.md)** | Complete migration workflow and architecture |
+| **[Customer Migration](./docs/CUSTOMER_MIGRATION.md)** | Detailed customer migration process |
+| **[CSV Analysis Tools](./docs/ColumnContentExtractor_Examples.md)** | Advanced CSV filtering and analysis |
+| **[Development Guide](./docs/WARP.md)** | Architecture, development commands, and API details |
+| **[Italian Documentation](./docs/README_IT.md)** | Original Italian documentation |
+
+## 🎯 Migration Strategy
+
+### For Large Datasets (15,000+ products)
+
+1. **Test with small batches** first (10-50 items)
+2. **Use sequential batches:**
 ```bash
-# Usa cron per eseguire ogni notte
-0 2 * * * cd /path/to/migration && docker-compose up
+# Batch 1: rows 0-499
+START_ROW=0 BATCH_SIZE=500 npm run migrate-products
+
+# Batch 2: rows 500-999  
+START_ROW=500 BATCH_SIZE=500 npm run migrate-products
 ```
 
-### Log Output
-
-```
-[INFO] Processing SKU: GLK.33781
-[INFO] Found existing product for SKU GLK.33781, updating...
-[SUCCESS] ↻ Updated product: Glock 33781 Firing Pin Safety GEN5
-[DEBUG]   ↳ Updated 2 images
-[INFO] === Migration Complete ===
-[INFO] Total: 100, Success: 100 (25 created, 75 updated), Failed: 0, Skipped: 0
-```
-
-## 📊 Suddivisione in Batch
-
-Per migrare 15.000 prodotti in batch da 500:
-
-**Batch 1 (prodotti 0-499):**
-```env
-START_ROW=0
-BATCH_SIZE=500
-```
-
-**Batch 2 (prodotti 500-999):**
-```env
-START_ROW=500
-BATCH_SIZE=500
-```
-
-**Batch 3 (prodotti 1000-1499):**
-```env
-START_ROW=1000
-BATCH_SIZE=500
-```
-
-...e così via.
-
-### Script Bash per automazione notturna
-
-Crea `run-batches.sh`:
-
+3. **Monitor progress:**
 ```bash
-#!/bin/bash
-
-TOTAL_PRODUCTS=15000
-BATCH_SIZE=500
-START=0
-
-while [ $START -lt $TOTAL_PRODUCTS ]; do
-    echo "Starting batch from row $START"
-    
-    # Aggiorna .env
-    sed -i "s/START_ROW=.*/START_ROW=$START/" .env
-    sed -i "s/BATCH_SIZE=.*/BATCH_SIZE=$BATCH_SIZE/" .env
-    
-    # Esegui migrazione
-    docker-compose up
-    
-    # Aspetta tra batch
-    sleep 30
-    
-    START=$((START + BATCH_SIZE))
-done
-
-echo "Migration complete!"
-```
-
-Rendilo eseguibile e schedulalo con cron:
-
-```bash
-chmod +x run-batches.sh
-
-# Esegui ogni notte alle 2:00 AM
-crontab -e
-# Aggiungi: 0 2 * * * cd /path/to/migration && ./run-batches.sh
-```
-
-## 📝 Monitoraggio
-
-I log vengono salvati in `./logs/migration.log`:
-
-```bash
-# Segui i log in tempo reale
 tail -f logs/migration.log
-
-# Cerca errori
-grep ERROR logs/migration.log
-
-# Conta prodotti migrati con successo
-grep "✓ Created product" logs/migration.log | wc -l
+go-task migration:progress
 ```
 
-## 🔍 Rate Limits Shopify
+### Data Validation and Preparation
 
-Lo script rispetta automaticamente i rate limits di Shopify:
+Use the CSV analysis tools to prepare your data:
 
-- **GraphQL API**: 2 richieste/secondo per store
-- **Cost-based limiting**: Max 1000 punti ogni 10 secondi
-- Lo script monitora i cost restanti e rallenta automaticamente
+```bash
+# Find products without descriptions
+go-task csv:extract-by-column COLUMN=description COUNT_ONLY=true
 
-## 🗺️ Mapping Campi
+# Extract only enabled products for migration
+go-task csv:extract-by-value COLUMN=status VALUE=Enabled OUTPUT=enabled_products.csv
 
-| Magento 2 | Shopify | Note |
-|-----------|---------|------|
-| `name` | `title` | |
-| `description` | `descriptionHtml` | |
-| `url_key` | `handle` | |
-| `price` | `variants[0].price` | Convertito in formato decimale |
-| `sku` | `variants[0].sku` | **Chiave univoca per update** |
-| `qty` | `inventoryQuantities.availableQuantity` | |
-| `cost` | `variants[0].inventoryItem.cost` | Da `additional_attributes` |
-| `manufacturer` | `vendor` | |
-| `categories` | `tags` | Split per virgola |
-| `meta_title` | `seo.title` | |
-| `meta_description` | `seo.description` | |
-| `product_online` | `status` | `>0` = ACTIVE, altrimenti DRAFT |
-| `base_image` + `additional_images` | `media` | URL costruiti da MAGENTO_BASE_URL |
+# Find products by category
+go-task csv:extract-by-contains COLUMN=categories SUBSTRING=Electronics
+```
 
-## ⚠️ Limitazioni Note
+## 🔍 Rate Limits & Performance
 
-1. **Varianti**: Lo script crea prodotti semplici. Per prodotti configurabili serve logica custom
-2. **Metafields**: Attributi custom vanno mappati su metafields Shopify
-3. **Prezzi speciali**: `special_price` non è gestito (serve regola di prezzo)
-4. **Categorie**: Le categorie Magento diventano tags (Shopify usa Collections)
-5. **Costo prodotto**: Viene estratto da `additional_attributes.cost` se presente
+The migration automatically handles Shopify's API limits:
 
-## 📊 Dati Importati per Prodotto
-
-Ogni prodotto viene importato con:
-- ✅ **Informazioni base**: Titolo, descrizione, vendor, tipo prodotto
-- ✅ **SEO**: Meta title, meta description, handle
-- ✅ **Variante**: SKU, prezzo, costo (se presente)
-- ✅ **Inventario**: Quantità disponibile per location
-- ✅ **Immagini**: Tutte le immagini (base + addizionali)
-- ✅ **Status**: ACTIVE se product_online > 0, altrimenti DRAFT
-- ✅ **Tags**: Tutte le categorie Magento come tags
+- **GraphQL API**: 2 requests/second per store maximum
+- **Cost-based limiting**: Max 1000 points per 10-second window
+- **Automatic backoff**: Built-in rate limit detection and retry logic
 
 ## 🐛 Troubleshooting
 
-**Errore: "Access token invalid"**
-- Verifica che l'access token sia corretto
-- Controlla che gli scopes includano `write_products`
+Common issues and solutions:
 
-**Errore: "Location not found"**
-- Il `SHOPIFY_LOCATION_ID` deve essere in formato `gid://shopify/Location/xxxxx`
+- **Access token invalid**: Check token and required scopes
+- **Location not found**: Use format `gid://shopify/Location/xxxxx`
+- **Images not loading**: Verify `MAGENTO_BASE_URL` and image accessibility
+- **Rate limit exceeded**: Increase `DELAY_MS` or reduce `MAX_CONCURRENT`
 
-**Immagini non caricate**
-- Le immagini devono essere accessibili pubblicamente via HTTP/HTTPS
-- Verifica che gli URL nel CSV siano corretti
-- **Se le immagini nel CSV sono relative** (es: `/2/2/image.jpg`):
-  - Configura `MAGENTO_BASE_URL` nel .env (es: `https://www.tuosito.com`)
-  - Configura `MAGENTO_MEDIA_PATH` se diverso dal default
-  - Lo script costruirà automaticamente l'URL completo
-- Testa un URL immagine completo nel browser per verificare che sia accessibile
+## 📞 Support
 
-**Rate limit exceeded**
-- Aumenta `DELAY_MS` nel .env (es: 1000)
-- Riduci `MAX_CONCURRENT` a 1
-
-## 📞 Supporto
-
-Per problemi o domande, controlla:
-- [Shopify GraphQL Admin API Docs](https://shopify.dev/docs/api/admin-graphql)
-- Log di migrazione in `./logs/migration.log`
+- Check detailed logs in `./logs/migration.log`
+- Consult [Shopify GraphQL Admin API Docs](https://shopify.dev/docs/api/admin-graphql)
+- Review documentation in the `./docs/` directory
 
 ---
 
-**Nota**: Testa sempre su un subset piccolo di prodotti (es: 10-20) prima di lanciare la migrazione completa!
+**⚠️ Important**: Always test with a small subset of data (10-20 items) before running the full migration!

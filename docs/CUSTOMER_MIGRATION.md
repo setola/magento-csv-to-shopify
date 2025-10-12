@@ -45,20 +45,20 @@ The migration expects a Magento customer export with these fields:
 | `Billing Firstname` | First name from billing | No |
 | `Billing Lastname` | Last name from billing | No |
 | `Phone` | Phone number | No |
-| `Domicilio fiscale` | Billing address | No |
-| `Indirizzo per la spedizione` | Shipping address | No |
+| `Billing Address` (`Domicilio fiscale`) | Billing address | No |
+| `Shipping Address` (`Indirizzo per la spedizione`) | Shipping address | No |
 | `ZIP` | Postal code | No |
-| `Paese` | Country | No |
+| `Country` (`Paese`) | Country | No |
 | `State/Province` | State/Province | No |
-| `Città` | City | No |
-| `Via` | Street | No |
+| `City` (`Città`) | City | No |
+| `Street` (`Via`) | Street | No |
 | `Confirmed email` | Email confirmation status | No |
 | `Date of Birth` | Customer birth date | No |
 | `Tax VAT Number` | VAT number | No |
 | `Gender` | Customer gender | No |
-| `Azienda` | Company name | No |
+| `Company` (`Azienda`) | Company name | No |
 | `Customer Since` | Registration date | No |
-| `Gruppo` | Customer group | No |
+| `Customer Group` (`Gruppo`) | Customer group | No |
 
 ## Features
 
@@ -68,7 +68,7 @@ The migration intelligently parses combined address strings and maps them to sep
 
 - **Street extraction** from combined address strings
 - **City and postal code detection**
-- **Country code normalization** (Italia → IT, Spagna → ES, etc.)
+- **Country code normalization** (Italy → IT, Spain → ES, etc.)
 - **Duplicate address detection** (skips identical billing/shipping addresses)
 
 ### Phone Number Formatting

@@ -370,9 +370,12 @@ async function createVariantWithSku(productId, productData) {
     inventoryItemInput.countryCodeOfOrigin = countryCode;
   }
 
+  // Determine correct pricing using special_price logic
+  const pricing = normalizer.determinePricing();
+  
   // Create variant input
   const variantInput = {
-    price: parseFloat(productData.price || '0').toFixed(2),
+    price: pricing.price,
     inventoryPolicy: 'DENY', // Don't allow sales when out of stock
     inventoryItem: inventoryItemInput,
     optionValues: [{
@@ -384,6 +387,11 @@ async function createVariantWithSku(productId, productData) {
       locationId: process.env.SHOPIFY_LOCATION_ID
     }] : undefined
   };
+  
+  // Add compareAtPrice if determined by pricing logic
+  if (pricing.compareAtPrice) {
+    variantInput.compareAtPrice = pricing.compareAtPrice;
+  }
 
   try {
     const result = await shopifyGraphQL(mutation, {
@@ -469,13 +477,22 @@ async function updateVariantPricing(variantId, productData) {
     throw new Error('Could not find product ID from variant');
   }
 
+  // Create normalizer and determine correct pricing
+  const normalizer = new Normalizers(CONFIG, log, productData);
+  const pricing = normalizer.determinePricing();
+  
   // According to the forum post, we should create the variant input based on ProductVariantsBulkInput
   // Let's try a minimal approach first - just the fields we know work
   const variantInput = {
     id: variantId,  // The existing variant ID
-    price: parseFloat(productData.price || '0').toFixed(2),
+    price: pricing.price,
     inventoryPolicy: 'DENY'
   };
+  
+  // Add compareAtPrice if determined by pricing logic
+  if (pricing.compareAtPrice) {
+    variantInput.compareAtPrice = pricing.compareAtPrice;
+  }
 
   // Note: SKU is NOT supported in ProductVariantsBulkInput
   // We'll need to handle SKU separately

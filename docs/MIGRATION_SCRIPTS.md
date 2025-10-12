@@ -72,6 +72,49 @@ MAX_CONCURRENT=2
 DELAY_MS=500
 ```
 
+## 🔧 CSV Analysis and Data Preparation
+
+Before running migrations, use the powerful CSV analysis tools to prepare and validate your data:
+
+### Basic Analysis
+```bash
+# Count total rows
+go-task csv:count-rows
+
+# List all available columns
+go-task csv:extract-by-column -- --list-columns
+
+# Get distinct values for a column
+go-task csv:distinct COLUMN=product_type COUNT=true SORT=true
+```
+
+### Advanced Filtering
+```bash
+# Extract products with descriptions (content-based)
+go-task csv:extract-by-column COLUMN=description
+
+# Extract products by exact status value
+go-task csv:extract-by-value COLUMN=status VALUE=Enabled OUTPUT=enabled_products.csv
+
+# Find products containing specific text
+go-task csv:extract-by-contains COLUMN=name SUBSTRING=iPhone CASE_INSENSITIVE=true
+
+# Search for specific SKUs
+go-task csv:search TERM=BIX.A-REM-70S
+```
+
+### Data Validation Examples
+```bash
+# Count products without descriptions
+go-task csv:extract-by-column COLUMN=description COUNT_ONLY=true
+
+# Find disabled products
+go-task csv:extract-by-value COLUMN=status VALUE=Disabled COUNT_ONLY=true
+
+# Identify products by manufacturer
+go-task csv:extract-by-contains COLUMN=manufacturer SUBSTRING=Apple COUNT_ONLY=true
+```
+
 ## 🔄 Code Architecture
 
 Both migration scripts follow the same pattern:
@@ -83,12 +126,30 @@ Both migration scripts follow the same pattern:
 5. **Batch Execution**: Rate-limited parallel processing
 6. **Progress Tracking**: Real-time statistics and timing
 
+### Shared Utilities System
+
+The migration suite includes a comprehensive utilities system:
+
+#### Core Migration Utilities
+- **`ShopifyClient.js`**: GraphQL API client with rate limiting
+- **`CSVParser.js`**: CSV parsing and batch processing
+- **`RateLimiter.js`**: Concurrent request management
+- **`Normalizers.js`**: Data normalization (products only)
+- **`Logger.js`**: Structured logging
+- **`TimeTracker.js`**: Performance tracking
+
+#### CSV Analysis Utilities
+- **`ColumnContentExtractor.js`**: Advanced CSV filtering with value matching
+- **`DistinctValueExtractor.js`**: Extract unique values from columns
+- **`CSVRowCounter.js`**: Count rows in CSV files
+
 ### Benefits of Shared Utilities
 
 - **No Code Duplication**: Common functionality extracted to utils
 - **Consistent Behavior**: Same rate limiting and error handling
 - **Easy Maintenance**: Single place to update shared logic
 - **Scalable**: Easy to add new migration types
+- **Powerful Analysis**: Advanced CSV filtering and data exploration
 
 ## 📊 Performance
 
