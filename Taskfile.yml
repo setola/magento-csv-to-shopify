@@ -330,3 +330,73 @@ tasks:
   migration:progress:
     cmds:
       - tail -fn1 {{ .LOGS_DIR }}/*.log | grep "Progress:"
+
+  delete:products:
+    desc: "Delete products from Shopify using CSV file with Docker"
+    summary: |
+      Delete products from Shopify based on SKUs listed in a CSV file.
+      Uses Docker to run the deletion script in an isolated environment.
+      
+      Usage Examples:
+      go-task delete:products                               # Delete using default settings
+      go-task delete:products DELETE_CSV_PATH=./data/to_delete.csv
+      go-task delete:products START_ROW=0 BATCH_SIZE=25    # Process in smaller batches
+      go-task delete:products NODE_IMAGE=node:18-alpine    # Use specific Node.js version
+      
+      Environment Variables:
+      DELETE_CSV_PATH: Path to CSV file with SKUs to delete (default: ./data/products_test.csv)
+      START_ROW: Starting row for batch processing (default: 0)
+      BATCH_SIZE: Number of products per batch (default: 50, smaller is safer)
+      MAX_CONCURRENT: Concurrent API requests (default: 2, keep low to avoid rate limits)
+      DELAY_MS: Delay between requests in milliseconds (default: 1000)
+      NODE_IMAGE: Docker image to use (default: node:alpine)
+      
+      IMPORTANT: This will permanently delete products from your Shopify store!
+      Always test with a small batch first and ensure you have backups.
+    vars:
+      NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
+      DELETE_CSV_PATH_VAR: '{{ .DELETE_CSV_PATH | default "./data/products_test.csv" }}'
+    cmds:
+      - |
+        # Create logs directory if it doesn't exist
+        mkdir -p {{ .LOGS_DIR }}
+        
+        echo "⚠️  WARNING: This will permanently delete products from your Shopify store!"
+        echo "CSV file: {{ .DELETE_CSV_PATH_VAR }}"
+        echo "Starting deletion process..."
+        
+        # Run product deletion in Docker
+        docker run --rm -it \
+          --name shopify-product-deletion \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          --env-file .env \
+          --env "DELETE_CSV_PATH={{ .DELETE_CSV_PATH_VAR }}" \
+          {{ if .START_ROW }}--env "START_ROW={{ .START_ROW }}" {{ end }}\
+          {{ if .BATCH_SIZE }}--env "BATCH_SIZE={{ .BATCH_SIZE }}" {{ end }}\
+          {{ if .MAX_CONCURRENT }}--env "MAX_CONCURRENT={{ .MAX_CONCURRENT }}" {{ end }}\
+          {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
+          {{ .NODE_IMAGE }} \
+          npm run delete-products
+  
+  delete:test-products:
+    desc: "Delete the test products from products_test.csv"
+    summary: |
+      Convenience task to delete the test products defined in data/products_test.csv.
+      This includes the SKUs: BIX.A-REM-70S, DAA.100358, GLK.33781, WLK.WALGWP-SLCR2-BT
+      
+      Usage:
+      go-task delete:test-products                    # Delete all test products
+      go-task delete:test-products BATCH_SIZE=2      # Delete in smaller batches
+      go-task delete:test-products DELAY_MS=2000     # Add more delay between requests
+      
+      IMPORTANT: This will permanently delete the test products from your Shopify store!
+    vars:
+      BATCH_SIZE_DEFAULT: '{{ .BATCH_SIZE | default "4" }}'
+      DELAY_MS_DEFAULT: '{{ .DELAY_MS | default "1500" }}'
+    cmds:
+      - |
+        echo "Deleting test products from {{ .CSV_FILE_TEST }}"
+        echo "This will delete products with SKUs: BIX.A-REM-70S, DAA.100358, GLK.33781, WLK.WALGWP-SLCR2-BT"
+        echo "Batch size: {{ .BATCH_SIZE_DEFAULT }}, Delay: {{ .DELAY_MS_DEFAULT }}ms"
+        go-task delete:products DELETE_CSV_PATH={{ .CSV_FILE_TEST }} BATCH_SIZE={{ .BATCH_SIZE_DEFAULT }} DELAY_MS={{ .DELAY_MS_DEFAULT }}

@@ -200,4 +200,34 @@ export default class ShopifyClient {
       return null;
     }
   }
+
+  // Delete product by ID
+  async deleteProductById(productId) {
+    const mutation = `
+      mutation productDelete($input: ProductDeleteInput!) {
+        productDelete(input: $input) {
+          deletedProductId
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    try {
+      const result = await this.query(mutation, { 
+        input: { id: productId }
+      });
+
+      if (result.productDelete?.userErrors?.length > 0) {
+        throw new Error(JSON.stringify(result.productDelete.userErrors));
+      }
+
+      return result.productDelete.deletedProductId;
+    } catch (error) {
+      this.log(`Failed to delete product ${productId}: ${error.message}`, 'ERROR');
+      throw error;
+    }
+  }
 }
