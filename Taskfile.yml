@@ -1,17 +1,39 @@
 version: "3"
 
+# Global variables shared across all tasks to eliminate duplication
+# These are available in all tasks and can be overridden by task-specific vars or CLI parameters
 vars:
+  # File and directory paths
   CSV_DIR: '{{ .CSV_DIR | default "./data" }}'
   CSV_FILE: 
     sh: find {{ .CSV_DIR }} -maxdepth 1 -type f -iname "export_catalog_product_*.csv" | head -1
   CSV_FILE_TEST: '{{ .CSV_FILE_TEST | default (print .CSV_DIR "/products_test.csv") }}'
   LOGS_DIR: '{{ .LOGS_DIR | default "./logs" }}'
+  
+  # Docker configuration
+  NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
+  DOCKER_LOGS_DIR: '{{ .DOCKER_LOGS_DIR | default "/app/logs" }}'
+  
+  # Common flags for CSV tasks
+  OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
+  COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
+  NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
+  CASE_INSENSITIVE_FLAG: '{{ if eq .CASE_INSENSITIVE "true" }}--case-insensitive{{ end }}'
+  COUNT_FLAG: '{{ if eq .COUNT "true" }}--count{{ end }}'
+  SORT_FLAG: '{{ if eq .SORT "true" }}--sort{{ end }}'
 
 tasks:
 
   csv:count-rows:
     cmds:
-      - docker compose run --rm migration node utils/CSVRowCounter.js {{ .CSV_FILE }}
+      - |
+        docker run --rm \
+          --name csv-row-counter \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          --env-file .env \
+          {{ .NODE_IMAGE }} \
+          node utils/CSVRowCounter.js {{ .CSV_FILE }}
 
   csv:search:
     desc: "Search for a term in Magento CSV files and extract complete rows"
@@ -73,9 +95,6 @@ tasks:
     vars:
       COLUMN: '{{ .COLUMN | default "" }}'
       CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
-      COUNT_FLAG: '{{ if eq .COUNT "true" }}--count{{ end }}'
-      SORT_FLAG: '{{ if eq .SORT "true" }}--sort{{ end }}'
-      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
       ARGS: '{{ .CLI_ARGS | default "" }}'
     cmds:
       - |
@@ -83,7 +102,13 @@ tasks:
           # Pass through CLI args directly (for --list-columns, --help, etc.)
           # Use dummy column name and main CSV file for --list-columns
           CSV_ARG="{{ .CSV_FILE }}"
-          docker compose run --rm migration node utils/DistinctValueExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+          docker run --rm \
+            --name csv-distinct-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/DistinctValueExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
         elif [ "{{ .COLUMN }}" = "" ]; then
           echo "Error: COLUMN parameter is required"
           echo "Usage: go-task csv:distinct COLUMN=column_name [options]"
@@ -92,7 +117,13 @@ tasks:
         else
           # Build command with parameters
           CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
-          docker compose run --rm migration node utils/DistinctValueExtractor.js "{{ .COLUMN }}" "$CSV_ARG" {{ .COUNT_FLAG }} {{ .SORT_FLAG }} {{ .OUTPUT_FLAG }}
+          docker run --rm \
+            --name csv-distinct-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/DistinctValueExtractor.js "{{ .COLUMN }}" "$CSV_ARG" {{ .COUNT_FLAG }} {{ .SORT_FLAG }} {{ .OUTPUT_FLAG }}
         fi
 
   csv:extract-by-column:
@@ -121,9 +152,6 @@ tasks:
     vars:
       COLUMN: '{{ .COLUMN | default "" }}'
       CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
-      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
-      COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
-      NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
       ARGS: '{{ .CLI_ARGS | default "" }}'
     cmds:
       - |
@@ -131,7 +159,13 @@ tasks:
           # Pass through CLI args directly (for --list-columns, --help, etc.)
           # Use dummy column name and main CSV file for --list-columns
           CSV_ARG="{{ .CSV_FILE }}"
-          docker compose run --rm migration node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+          docker run --rm \
+            --name csv-column-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
         elif [ "{{ .COLUMN }}" = "" ]; then
           echo "Error: COLUMN parameter is required"
           echo "Usage: go-task csv:extract-by-column COLUMN=column_name [options]"
@@ -140,7 +174,13 @@ tasks:
         else
           # Build command with parameters
           CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
-          docker compose run --rm migration node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }}
+          docker run --rm \
+            --name csv-column-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }}
         fi
 
   csv:extract-by-value:
@@ -167,17 +207,19 @@ tasks:
       COLUMN: '{{ .COLUMN | default "" }}'
       VALUE: '{{ .VALUE | default "" }}'
       CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
-      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
-      COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
-      NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
-      CASE_INSENSITIVE_FLAG: '{{ if eq .CASE_INSENSITIVE "true" }}--case-insensitive{{ end }}'
       ARGS: '{{ .CLI_ARGS | default "" }}'
     cmds:
       - |
         if [ "{{ .ARGS }}" != "" ]; then
           # Pass through CLI args directly (for --list-columns, --help, etc.)
           CSV_ARG="{{ .CSV_FILE }}"
-          docker compose run --rm migration node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+          docker run --rm \
+            --name csv-column-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
         elif [ "{{ .COLUMN }}" = "" ] || [ "{{ .VALUE }}" = "" ]; then
           echo "Error: Both COLUMN and VALUE parameters are required"
           echo "Usage: go-task csv:extract-by-value COLUMN=column_name VALUE=target_value [options]"
@@ -186,7 +228,13 @@ tasks:
         else
           # Build command with parameters
           CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
-          docker compose run --rm migration node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --value "{{ .VALUE }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
+          docker run --rm \
+            --name csv-column-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --value "{{ .VALUE }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
         fi
 
   csv:extract-by-contains:
@@ -213,17 +261,19 @@ tasks:
       COLUMN: '{{ .COLUMN | default "" }}'
       SUBSTRING: '{{ .SUBSTRING | default "" }}'
       CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
-      OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
-      COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
-      NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
-      CASE_INSENSITIVE_FLAG: '{{ if eq .CASE_INSENSITIVE "true" }}--case-insensitive{{ end }}'
       ARGS: '{{ .CLI_ARGS | default "" }}'
     cmds:
       - |
         if [ "{{ .ARGS }}" != "" ]; then
           # Pass through CLI args directly (for --list-columns, --help, etc.)
           CSV_ARG="{{ .CSV_FILE }}"
-          docker compose run --rm migration node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+          docker run --rm \
+            --name csv-column-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
         elif [ "{{ .COLUMN }}" = "" ] || [ "{{ .SUBSTRING }}" = "" ]; then
           echo "Error: Both COLUMN and SUBSTRING parameters are required"
           echo "Usage: go-task csv:extract-by-contains COLUMN=column_name SUBSTRING=search_text [options]"
@@ -232,7 +282,13 @@ tasks:
         else
           # Build command with parameters
           CSV_ARG="{{ if .CSV_FILE_PARAM }}{{ .CSV_FILE_PARAM }}{{ else }}{{ .CSV_FILE }}{{ end }}"
-          docker compose run --rm migration node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --contains "{{ .SUBSTRING }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
+          docker run --rm \
+            --name csv-column-extractor \
+            --workdir /app \
+            --volume "$(pwd):/app" \
+            --env-file .env \
+            {{ .NODE_IMAGE }} \
+            node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --contains "{{ .SUBSTRING }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
         fi
 
   csv:extract-test-products:
@@ -247,10 +303,6 @@ tasks:
       - for: { var: SKUS }
         cmd: python3 -c "import csv,sys,io; [csv.writer(sys.stdout).writerow(row) for file in sys.argv[1:] for row in csv.reader(open(file)) if len(row) > 0 and row[0] == '{{ .ITEM }}']" {{ .CSV_FILE }} 2>/dev/null 1>> {{ .CSV_FILE_TEST }}
 
-  migration:migrate:
-    cmds:
-      - docker compose up
-  
   migration:customers:
     desc: "Run customer migration using Docker (without compose)"
     summary: |
@@ -267,9 +319,6 @@ tasks:
       START_ROW: Starting row for batch processing
       BATCH_SIZE: Number of customers per batch
       All other environment variables from .env file are passed through
-    vars:
-      NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
-      DOCKER_LOGS_DIR: '{{ .DOCKER_LOGS_DIR | default "/app/logs" }}'
     cmds:
       - |
         # Create logs directory if it doesn't exist
@@ -305,9 +354,6 @@ tasks:
       START_ROW: Starting row for batch processing
       BATCH_SIZE: Number of products per batch
       All other environment variables from .env file are passed through
-    vars:
-      NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
-      DOCKER_LOGS_DIR: '{{ .DOCKER_LOGS_DIR | default "/app/logs" }}'
     cmds:
       - |
         # Create logs directory if it doesn't exist
@@ -354,7 +400,6 @@ tasks:
       IMPORTANT: This will permanently delete products from your Shopify store!
       Always test with a small batch first and ensure you have backups.
     vars:
-      NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
       DELETE_CSV_PATH_VAR: '{{ .DELETE_CSV_PATH | default "./data/products_test.csv" }}'
     cmds:
       - |

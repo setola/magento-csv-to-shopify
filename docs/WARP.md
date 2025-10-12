@@ -36,13 +36,13 @@ npm run migrate-products
 npm run migrate-customers
 
 # Run with Docker (recommended for production)
-docker compose up
+go-task migration:products
 
 # Run customer migration with Docker
-docker compose run --rm migration npm run migrate-customers
+go-task migration:customers
 
 # Run in interactive mode for debugging
-docker compose run --rm migration sh
+docker run --rm -it --workdir /app --volume "$(pwd):/app" --env-file .env node:alpine sh
 ```
 
 ### CSV Analysis (using Task runner)
