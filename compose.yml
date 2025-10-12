@@ -16,7 +16,7 @@ services:
       - migration-network
     working_dir: /app
     command:
-      npm run migrate
+      npm run migrate-products
 
 networks:
   migration-network:

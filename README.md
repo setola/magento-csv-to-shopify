@@ -1,6 +1,15 @@
 # Migrazione Magento 2 → Shopify
 
-Script completo per migrare prodotti da Magento 2 a Shopify utilizzando le GraphQL Admin API.
+Suite completa per migrare dati da Magento 2 a Shopify utilizzando le GraphQL Admin API.
+
+## 📦 Strumenti di Migrazione
+
+Questa suite include due strumenti specializzati:
+
+- **`product-migrate.js`**: Migrazione prodotti con varianti, immagini, inventario
+- **`customer-migrate.js`**: Migrazione clienti con indirizzi, telefoni, consensi marketing
+
+Entrambi condividono utilities comuni per garantire prestazioni ottimali e comportamento coerente.
 
 ## 🚀 Caratteristiche
 
@@ -96,11 +105,13 @@ products.csv
 
 ## 🏃 Esecuzione
 
-### Opzione 1: Con Docker (Consigliato)
+### Migrazione Prodotti
+
+#### Opzione 1: Con Docker (Consigliato)
 
 ```bash
 # 1. Verifica che tutti i file siano presenti
-ls -la products.csv .env migrate.js package.json
+ls -la products.csv .env product-migrate.js package.json
 
 # 2. Crea la directory logs se non esiste
 mkdir -p logs
@@ -130,20 +141,42 @@ cat .env
 ls -lh products.csv
 
 # Esegui il container in modalità interattiva per vedere gli errori
-docker-compose run --rm migration node migrate.js
+docker-compose run --rm migration node product-migrate.js
 
 # Verifica i log dell'ultima esecuzione
 docker-compose logs migration
 ```
 
-### Opzione 2: Senza Docker
+#### Opzione 2: Senza Docker
 
 ```bash
 # Installa dipendenze
 npm install
 
-# Esegui migrazione
-npm run migrate
+# Esegui migrazione prodotti
+npm run migrate-products
+```
+
+### Migrazione Clienti
+
+Per la migrazione clienti, consulta la documentazione dettagliata: [`CUSTOMER_MIGRATION.md`](./CUSTOMER_MIGRATION.md)
+
+#### Esecuzione Rapida
+
+```bash
+# Con Docker
+docker compose run --rm migration npm run migrate-customers
+
+# Senza Docker
+npm run migrate-customers
+```
+
+#### Configurazione CSV Clienti
+
+```env
+# Aggiungi al tuo .env
+CUSTOMERS_CSV_PATH=./data/export_customers.csv
+BATCH_SIZE=50  # Batch più piccoli per i clienti
 ```
 
 ## 🔄 Aggiornamento Prodotti Esistenti

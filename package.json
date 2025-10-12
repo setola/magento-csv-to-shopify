@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "Migrate products from Magento 2 to Shopify using GraphQL API",
   "type": "module",
-  "main": "migrate.js",
+  "main": "product-migrate.js",
   "scripts": {
-    "migrate": "node migrate.js",
-    "test": "node migrate.js"
+    "migrate": "node product-migrate.js",
+    "migrate-products": "node product-migrate.js",
+    "migrate-customers": "node customer-migrate.js",
+    "test": "node product-migrate.js"
   },
   "keywords": [
     "magento",

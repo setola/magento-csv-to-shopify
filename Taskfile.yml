@@ -5,8 +5,13 @@ vars:
   CSV_FILE: 
     sh: find {{ .CSV_DIR }} -maxdepth 1 -type f -iname "export_catalog_product_*.csv" | head -1
   CSV_FILE_TEST: '{{ .CSV_FILE_TEST | default (print .CSV_DIR "/products_test.csv") }}'
+  LOGS_DIR: '{{ .LOGS_DIR | default "./logs" }}'
 
 tasks:
+
+  csv:count-rows:
+    cmds:
+      - python3 utils/count_csv_rows.py {{ .CSV_FILE }}
 
   csv:search:
     desc: "Search for a term in Magento CSV files and extract complete rows"
@@ -22,6 +27,7 @@ tasks:
       TERM: '{{.TERM | default "BIX.A-REM-70S"}}'
     silent: true
     cmds:
+      - head -n1 {{ .CSV_FILE }}
       - |
         python3 -c "import csv,sys,io; [csv.writer(sys.stdout).writerow(row) for file in sys.argv[1:] for row in csv.reader(open(file)) if '{{.TERM}}' in ','.join(row)]" {{ .CSV_FILE }} 2>/dev/null || true
 
@@ -56,3 +62,7 @@ tasks:
   migration:migrate:
     cmds:
       - docker compose up
+  
+  migration:progress:
+    cmds:
+      - tail -fn1 {{ .LOGS_DIR }}/*.log | grep "Progress:"

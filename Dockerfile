@@ -3,7 +3,7 @@ FROM node:alpine
 WORKDIR /app
 
 # Copia package files
-COPY package*.json ./
+COPY package*.json product-migrate.js ./
 
 # Installa dipendenze
 RUN npm install --production
@@ -16,4 +16,4 @@ COPY .env ./
 RUN mkdir -p /app/logs
 
 # Comando di default
-CMD ["node", "migrate.js"]
+CMD ["node", "product-migrate.js"]
