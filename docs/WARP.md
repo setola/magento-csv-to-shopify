@@ -4,220 +4,280 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-This is a **Magento 2 to Shopify migration suite** built in Node.js. It provides two specialized migration tools that use Shopify's GraphQL Admin API to migrate products and customers from Magento 2 CSV exports to Shopify stores.
+Magento 2 to Shopify migration suite using Node.js and Shopify's GraphQL Admin API. Migrates products and customers from Magento 2 CSV exports with advanced CSV analysis tools.
 
-### Core Components
+**Core Scripts:**
+- `product-migrate.js` - Products with variants, images, inventory, SEO
+- `customer-migrate.js` - Customers with addresses, phone numbers, marketing consent
+- `product-delete.js` - Product deletion by SKU from CSV
 
-- **`product-migrate.js`**: Migrates products with variants, images, inventory, and SEO data
-- **`customer-migrate.js`**: Migrates customers with addresses, phone numbers, and marketing consent
-- **Utils library** (`utils/`): Shared utilities for Shopify API client, CSV parsing, rate limiting, logging, and data normalization
+**Utils Library (`utils/`):**
+- `ShopifyClient.js` - GraphQL client with rate limiting and API cost tracking
+- `CSVParser.js` - CSV parsing with batch processing (uses papaparse)
+- `RateLimiter.js` - Concurrent request limiting with p-limit
+- `Normalizers.js` / `CustomerNormalizers.js` - Data transformation Magento→Shopify
+- `Logger.js` - Dual console+file logging
+- `TimeTracker.js` - Performance monitoring
+- CSV Analysis: `ColumnContentExtractor.js`, `DistinctValueExtractor.js`, `CSVRowCounter.js`
 
 ## Development Commands
 
-### Setup and Configuration
+### Initial Setup
 ```bash
-# Copy environment template and configure
-cp .env.example .env
-# Edit .env with your Shopify credentials and Magento URLs
-
-# Install dependencies
-npm install
-
-# Create logs directory
-mkdir -p logs
+cp .env.example .env  # Configure Shopify credentials, Magento URLs
+mkdir -p logs data    # Create required directories
 ```
 
 ### Migration Execution
+
+**Using Taskfile (recommended):**
 ```bash
-# Run product migration (via npm)
-npm run migrate-products
+go-task migration:products                    # Full product migration
+go-task migration:customers                   # Customer migration
+go-task migration:products START_ROW=100 BATCH_SIZE=500  # Batch control
+```
 
-# Run customer migration (via npm) 
+**Using npm directly:**
+```bash
+npm run migrate-products   # Direct Node.js execution
 npm run migrate-customers
+npm run delete-products    # Delete products by SKU from CSV
+```
 
-# Run with Docker (recommended for production)
-go-task migration:products
-
-# Run customer migration with Docker
-go-task migration:customers
-
-# Run in interactive mode for debugging
+**Docker execution (for debugging):**
+```bash
 docker run --rm -it --workdir /app --volume "$(pwd):/app" --env-file .env node:alpine sh
 ```
 
-### CSV Analysis (using Task runner)
+### CSV Analysis Tools
+
+**Basic operations:**
 ```bash
-# Count rows in CSV files
-go-task csv:count-rows
+go-task csv:count-rows                              # Count CSV rows
+go-task csv:extract-by-column -- --list-columns     # Show available columns
+go-task csv:search TERM=SKU123                      # Full-text search
+go-task csv:search-sku SKU=EXACT-SKU                # Exact SKU match
+```
 
-# List available columns
-go-task csv:extract-by-column -- --list-columns
-
-# Search for specific products
-go-task csv:search TERM=BIX.A-REM-70S
-
-# Search by exact SKU
-go-task csv:search-sku SKU=DAA.100358
-
-# Extract products by content (original functionality)
-go-task csv:extract-by-column COLUMN=description
-
-# Extract products by exact value
+**Advanced filtering:**
+```bash
 go-task csv:extract-by-value COLUMN=status VALUE=Enabled
-
-# Extract products by substring
-go-task csv:extract-by-contains COLUMN=name SUBSTRING=iPhone
-
-# Case-insensitive matching
-go-task csv:extract-by-contains COLUMN=manufacturer SUBSTRING=apple CASE_INSENSITIVE=true
-
-# Get distinct values from columns
+go-task csv:extract-by-contains COLUMN=name SUBSTRING=iPhone CASE_INSENSITIVE=true
 go-task csv:distinct COLUMN=product_type COUNT=true SORT=true
-
-# Extract test products to separate CSV
-go-task csv:extract-test-products
-
-# Monitor migration progress
-go-task migration:progress
+go-task csv:extract-by-column COLUMN=description OUTPUT=with_desc.csv
 ```
 
-### Development and Debugging
+**Test workflows:**
 ```bash
-# View logs in real-time
-tail -f logs/migration.log
-
-# Search for errors
-grep ERROR logs/migration.log
-
-# Count successful migrations
-grep "✓ Created product" logs/migration.log | wc -l
-
-# Run single test (products.csv must exist)
-npm test
+go-task csv:extract-test-products  # Create products_test.csv with specific SKUs
+go-task delete:test-products       # Delete test products from Shopify
 ```
 
-## Architecture and Structure
+### Monitoring and Debugging
+```bash
+go-task migration:progress         # Follow progress in real-time
+tail -f logs/migration.log         # Watch full log
+grep ERROR logs/migration.log      # Find errors
+grep "✓ Created product" logs/migration.log | wc -l  # Count successes
+```
 
-### Migration Pattern
-The codebase follows a **modular utility-based architecture**:
+## Architecture
 
-1. **Main Scripts** (`product-migrate.js`, `customer-migrate.js`): Orchestrate the migration flow
-2. **Utilities** (`utils/`): Reusable components for common functionality
-3. **Configuration-driven**: All behavior controlled via environment variables
-4. **Batch Processing**: Built-in support for processing large datasets in chunks
-5. **Rate Limiting**: Automatic Shopify API rate limit handling
+### Design Pattern: Modular Utility-Based
 
-### Key Architectural Decisions
+**Separation of concerns:**
+1. Main scripts orchestrate workflow (parse CSV → normalize → API calls)
+2. Utilities handle cross-cutting concerns (logging, rate limiting, API interaction)
+3. Normalizers encapsulate Magento→Shopify field mapping logic
+4. Configuration via environment variables
 
-- **Idempotent Operations**: Both migrations can be run multiple times safely
-- **SKU-based Updates**: Products are identified by SKU for updates vs creation
-- **Email-based Updates**: Customers are identified by email address
-- **GraphQL-first**: Uses modern Shopify GraphQL Admin API (not deprecated REST)
-- **Utility Classes**: Shared functionality extracted to reusable classes
-
-### Utilities Architecture
-
-- **`ShopifyClient.js`**: Handles GraphQL queries, rate limiting, and API interactions
-- **`CSVParser.js`**: Generic CSV parsing with batch processing support
-- **`RateLimiter.js`**: Concurrent request limiting with progress tracking
-- **`Normalizers.js`**: Data transformation between Magento and Shopify formats
-- **`Logger.js`**: Structured logging to both console and files
-- **`TimeTracker.js`**: Performance monitoring and elapsed time tracking
-
-### CSV Analysis Utilities
-
-- **`ColumnContentExtractor.js`**: Advanced CSV filtering with three extraction modes:
-  - Content-based: Extract rows where column has any non-empty content
-  - Exact value matching: Extract rows where column equals specific value
-  - Substring matching: Extract rows where column contains substring
-  - Supports case-insensitive matching, batch processing, and file output
-- **`DistinctValueExtractor.js`**: Extract unique values from CSV columns with counting and sorting
-- **`CSVRowCounter.js`**: Simple row counting utility for CSV files
+**Key architectural principles:**
+- **Idempotent operations**: Migrations use SKU/email lookups to update existing records
+- **GraphQL-first**: Uses Shopify Admin API 2024-10 (not deprecated REST API)
+- **Rate limit aware**: Monitors GraphQL cost and throttles automatically
+- **Batch processing**: Supports START_ROW/BATCH_SIZE for large datasets
+- **Docker-first**: All tasks run in containers for consistency
 
 ### Data Flow
-1. **CSV Parsing**: Load and validate Magento export data
-2. **Normalization**: Transform Magento fields to Shopify format
-3. **API Discovery**: Check if product/customer already exists
-4. **Create/Update**: Execute GraphQL mutations with proper error handling
-5. **Post-processing**: Handle inventory, images, and related data
+
+```
+CSV Export (Magento) 
+  → CSVParser.js (batch load with papaparse)
+  → Normalizers.js (field transformation)
+  → ShopifyClient.findProductBySku() (check existing)
+  → Create/Update mutation via ShopifyClient.query()
+  → RateLimiter (concurrent control with p-limit)
+  → Logger (console + file output)
+```
+
+### Product Migration Specifics
+
+**Price logic:**
+- If `special_price` < `price`: use `special_price` as price, `price` as `compareAtPrice`
+- Otherwise: use `price` directly
+
+**Publication logic:**
+- Products with `qty > 0` are published immediately
+- Products with `qty === 0` remain as drafts
+
+**Category mapping:**
+- Magento categories → Shopify tags (normalized to lowercase)
+- Attempts mapping to Shopify taxonomy (`gid://shopify/ProductTaxonomyNode/{path}`)
+
+**Image handling:**
+- Constructs full URLs: `MAGENTO_BASE_URL + MAGENTO_MEDIA_PATH + relative_path`
+- Deletes existing images before adding new ones (avoids duplicates)
+
+**SEO fields:**
+- `meta_title` → SEO title (fallback: product name)
+- `meta_description` → SEO description
+- `url_key` → Shopify handle
+
+### Customer Migration Specifics
+
+**Address parsing:**
+- Splits combined address fields intelligently
+- Maps Italian province codes to full names
+
+**Phone normalization:**
+- Handles Italian format: `+39 prefix number`
+- International format detection
+
+**Marketing consent:**
+- Magento `confirmed` → Shopify `emailMarketingConsent`
+
+### Error Handling
+
+- Individual failures don't stop batch processing
+- All errors logged with SKU/email identifiers for recovery
+- GraphQL `userErrors` are caught and logged
+- Rate limit errors trigger automatic backoff
 
 ## Environment Variables
 
-### Required Configuration
+### Required
 ```env
-SHOPIFY_STORE_URL=your-store.myshopify.com
-SHOPIFY_ACCESS_TOKEN=shpat_xxxxxxxxxxxxxxxxxxxxx
-SHOPIFY_LOCATION_ID=gid://shopify/Location/xxxxxxxxxxxxx
-MAGENTO_BASE_URL=https://www.your-magento-store.com
+SHOPIFY_STORE_URL=store.myshopify.com
+SHOPIFY_ACCESS_TOKEN=shpat_xxx
+SHOPIFY_LOCATION_ID=gid://shopify/Location/xxx  # For inventory
+MAGENTO_BASE_URL=https://www.magento-store.com
 ```
 
-### Batch Processing
+### CSV Paths
 ```env
-CSV_PATH=./products.csv
+CSV_PATH=./products.csv                          # Auto-discovered in data/
 CUSTOMERS_CSV_PATH=./data/export_customers.csv
-START_ROW=0           # Starting row for batch processing
-BATCH_SIZE=100        # Products per batch (50 for customers)
+DELETE_CSV_PATH=./data/products_test.csv         # For deletion script
 ```
 
-### Performance Tuning
+### Batch Control
 ```env
-MAX_CONCURRENT=2      # Concurrent API requests
-DELAY_MS=500         # Delay between requests (increase if rate limited)
+START_ROW=0       # Skip first N rows
+BATCH_SIZE=100    # Products: 100-500, Customers: 50, Delete: 25
 ```
 
-## Migration Strategy
+### Rate Limiting
+```env
+MAX_CONCURRENT=2  # Concurrent API requests (keep ≤ 2)
+DELAY_MS=500      # Delay between requests (increase if rate limited)
+```
 
-### Products Migration
-- **Field Mapping**: Automated mapping from Magento CSV to Shopify product structure
-- **Price Handling**: Intelligent pricing logic - if `special_price` < `price`, uses `special_price` as main price and `price` as compareAtPrice ("Was" price)
-- **Image Handling**: Constructs full image URLs from relative Magento paths
-- **Inventory Management**: Sets quantities and enables/disables inventory tracking
-- **SEO Migration**: Transfers meta titles, descriptions, and URL handles
-- **Category Mapping**: Converts Magento categories to Shopify tags with taxonomy mapping
+### Optional
+```env
+MAGENTO_MEDIA_PATH=/pub/media/catalog/product
+NODE_IMAGE=node:alpine  # Docker image for tasks
+```
 
-### Customer Migration
-- **Address Parsing**: Intelligent parsing of combined address fields
-- **Phone Normalization**: Handles Italian/international phone format conversion
-- **Marketing Consent**: Maps confirmed email status to Shopify marketing preferences
-- **Data Enrichment**: Adds customer tags based on registration year, country, etc.
+## Shopify API Details
 
-### Error Handling and Recovery
-- **Validation**: Pre-flight checks for required fields and data integrity
-- **Graceful Failures**: Individual item failures don't stop batch processing
-- **Detailed Logging**: Error tracking with product/customer identifiers for recovery
-- **Retry Capability**: Built-in support for re-running failed items
+**API Version:** `2024-10` (hardcoded in `ShopifyClient.js`)
+
+**Rate Limits:**
+- GraphQL: 2 requests/second per store
+- Cost-based: 1000 points per 10-second bucket
+- `ShopifyClient` monitors `extensions.cost.throttleStatus.currentlyAvailable`
+- Auto-waits if available points < 100
+
+**Required Scopes:**
+- `write_products`, `read_products`
+- `write_inventory`
+- `write_customers`, `read_customers`
+
+**GraphQL Mutations Used:**
+- `productCreate`, `productUpdate`, `productDelete`
+- `productCreateMedia`, `productDeleteMedia`
+- `productVariantUpdate`, `inventorySetOnHandQuantities`
+- `customerCreate`, `customerUpdate`
 
 ## Working with Large Datasets
 
-### Batch Processing Strategy
-For migrating 15,000+ products, use sequential batches:
+**Strategy for 15,000+ products:**
 ```bash
-# Batch 1: rows 0-499
-START_ROW=0 BATCH_SIZE=500 npm run migrate-products
+# Test first with small batch
+START_ROW=0 BATCH_SIZE=10 go-task migration:products
 
-# Batch 2: rows 500-999  
-START_ROW=500 BATCH_SIZE=500 npm run migrate-products
+# Then process in chunks
+START_ROW=0 BATCH_SIZE=500 go-task migration:products
+START_ROW=500 BATCH_SIZE=500 go-task migration:products
+START_ROW=1000 BATCH_SIZE=500 go-task migration:products
 ```
 
-### Monitoring and Progress
-- Real-time progress updates every 10 items
-- Performance metrics (items/second, elapsed time)
-- Final statistics with success/failure counts
-- Log file analysis for debugging
+**Performance monitoring:**
+- Progress logged every 10 items
+- Metrics: items/second, elapsed time, estimated completion
+- Final stats: total/success/failure counts
 
-## Shopify API Considerations
+## Taskfile Structure
 
-### Rate Limits
-- **GraphQL API**: 2 requests/second per store maximum
-- **Cost-based Limiting**: Max 1000 points per 10-second window
-- **Automatic Handling**: Built-in rate limit detection and backoff
+**Global variables (Taskfile.yml):**
+- `CSV_DIR`, `CSV_FILE` (auto-discovers `export_catalog_product_*.csv`)
+- `NODE_IMAGE` (default: `node:alpine`)
+- Flags: `OUTPUT_FLAG`, `COUNT_ONLY_FLAG`, `CASE_INSENSITIVE_FLAG`
 
-### Required Shopify Permissions
-- `write_products` (product creation/updates)
-- `read_products` (product lookups)  
-- `write_inventory` (inventory management)
-- `write_customers` (customer creation/updates)
-- `read_customers` (customer lookups)
+**Task naming convention:**
+- `csv:*` - CSV analysis utilities
+- `migration:*` - Migration execution
+- `delete:*` - Product deletion
 
-### GraphQL Schema Version
-Uses Shopify Admin API version **2024-10** for maximum compatibility with latest features.
+**All tasks run in Docker containers** with volume mount `$(pwd):/app` and `--env-file .env`
+
+## Code Patterns to Follow
+
+**When adding new migrations:**
+1. Use `ShopifyClient.query()` for all GraphQL calls
+2. Implement find-by-identifier method (SKU, email, etc.)
+3. Use `Normalizers` pattern for data transformation
+4. Log at INFO level for user-facing messages, DEBUG for details
+5. Wrap in `RateLimiter` if making concurrent calls
+6. Handle `userErrors` from GraphQL responses
+
+**When adding CSV utilities:**
+1. Use `papaparse` for CSV parsing (already in dependencies)
+2. Support `--list-columns`, `--help` flags
+3. Accept `OUTPUT`, `COUNT_ONLY`, `CASE_INSENSITIVE` options
+4. Add corresponding task in `Taskfile.yml` with detailed `summary:`
+
+**Logger usage:**
+- `log(message, 'INFO')` - Normal progress
+- `log(message, 'SUCCESS')` - Completed operations (✓ prefix)
+- `log(message, 'WARN')` - Warnings (rate limits, missing data)
+- `log(message, 'ERROR')` - Failures (✗ prefix)
+- `log(message, 'DEBUG')` - Detailed information (↳ prefix)
+
+## Testing Workflow
+
+**Before production migration:**
+1. Extract test products: `go-task csv:extract-test-products`
+2. Migrate test batch: `CSV_PATH=./data/products_test.csv go-task migration:products`
+3. Verify in Shopify admin
+4. Delete test products: `go-task delete:test-products`
+5. Repeat with larger batch (50-100 items)
+6. Run full migration with monitoring
+
+## Important Notes
+
+- **Never commit to git unless explicitly requested** - migrations are data operations, not code changes
+- **CSV file discovery** - Tasks auto-find `export_catalog_product_*.csv` in `data/` directory
+- **Docker isolation** - All commands run in containers; no need for local Node.js installation
+- **Idempotency** - Safe to re-run migrations; existing items are updated, not duplicated
+- **Language** - All code/comments should be in English (some legacy Italian comments exist)

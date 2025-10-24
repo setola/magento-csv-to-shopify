@@ -9,6 +9,7 @@
     "migrate-products": "node product-migrate.js",
     "migrate-customers": "node customer-migrate.js",
     "delete-products": "node product-delete.js",
+    "web-download": "node web-download.js",
     "test": "node product-migrate.js"
   },
   "keywords": [

@@ -445,3 +445,51 @@ tasks:
         echo "This will delete products with SKUs: BIX.A-REM-70S, DAA.100358, GLK.33781, WLK.WALGWP-SLCR2-BT"
         echo "Batch size: {{ .BATCH_SIZE_DEFAULT }}, Delay: {{ .DELAY_MS_DEFAULT }}ms"
         go-task delete:products DELETE_CSV_PATH={{ .CSV_FILE_TEST }} BATCH_SIZE={{ .BATCH_SIZE_DEFAULT }} DELAY_MS={{ .DELAY_MS_DEFAULT }}
+
+  downloader:download-csv:
+    desc: "Download CSV file from authenticated web source using Docker"
+    summary: |
+      Download CSV files from web sources that require authentication.
+      Uses Docker to run the web downloader script in an isolated environment.
+      
+      Usage Examples:
+      go-task downloader:download-csv                           # Download using default settings
+      go-task downloader:download-csv NODE_IMAGE=node:18-alpine # Use specific Node.js version
+      go-task downloader:download-csv OUTPUT_DIR=./custom_data   # Custom output directory
+      
+      Environment Variables (set in .env file):
+      LOGIN_URL: URL for authentication endpoint (required)
+      DOWNLOAD_URL: URL to download CSV file from (required)
+      WEB_USERNAME: Username for authentication (required)
+      WEB_PASSWORD: Password for authentication (required)
+      OUTPUT_DIR: Directory to save downloaded files (default: ./data)
+      DOWNLOAD_FILENAME: Base filename for downloaded file (default: downloaded_file.csv)
+      
+      Additional Docker Options:
+      NODE_IMAGE: Docker image to use (default: node:alpine)
+      
+      The script will:
+      1. Authenticate with the provided credentials
+      2. Extract and store PHPSESSID cookie
+      3. Make authenticated request to download URL
+      4. Save CSV file with timestamp to prevent overwrites
+    cmds:
+      - |
+        # Create logs directory if it doesn't exist
+        mkdir -p {{ .LOGS_DIR }}
+        
+        echo "Starting web CSV download process..."
+        echo "Login URL: ${LOGIN_URL:-'Not set'}"
+        echo "Download URL: ${DOWNLOAD_URL:-'Not set'}"
+        echo "Output directory: ${OUTPUT_DIR:-'./data'}"
+        
+        # Run web downloader in Docker
+        docker run --rm -it \
+          --name web-csv-downloader \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          --env-file .env \
+          {{ if .OUTPUT_DIR }}--env "OUTPUT_DIR={{ .OUTPUT_DIR }}" {{ end }}\
+          {{ if .DOWNLOAD_FILENAME }}--env "DOWNLOAD_FILENAME={{ .DOWNLOAD_FILENAME }}" {{ end }}\
+          {{ .NODE_IMAGE }} \
+          npm run web-download
