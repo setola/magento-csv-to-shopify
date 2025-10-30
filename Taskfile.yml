@@ -373,6 +373,48 @@ tasks:
           {{ .NODE_IMAGE }} \
           npm run migrate-products
   
+  migration:paganini:
+    desc: "Run Paganini CSV import to Shopify using Docker"
+    summary: |
+      Import products from Paganini CSV files to Shopify.
+      Filters only LEUPOLD products and normalizes data including:
+      - SKU generation from vendor and product code
+      - Price normalization (Italian format with comma decimal)
+      - HTML stripping from descriptions
+      - Availability mapping (A=1, B=4, C=10, other=0)
+      
+      Usage:
+      go-task migration:paganini
+      go-task migration:paganini START_ROW=0 BATCH_SIZE=50
+      go-task migration:paganini PAGANINI_CSV_PATH=./data/paganini_data_latest.csv
+      
+      Environment variables:
+      NODE_IMAGE: Docker image to use (default: node:alpine)
+      PAGANINI_CSV_PATH: Path to Paganini CSV file (supports wildcards, default: ./data/paganini_data_*.csv)
+      START_ROW: Starting row for batch processing (default: 0)
+      BATCH_SIZE: Number of products per batch (default: 50)
+      MAX_CONCURRENT: Concurrent API requests (default: 2)
+      DELAY_MS: Delay between requests in milliseconds (default: 500)
+      All other environment variables from .env file are passed through
+    cmds:
+      - |
+        # Create logs directory if it doesn't exist
+        mkdir -p {{ .LOGS_DIR }}
+        
+        # Run Paganini migration in Docker
+        docker run --rm -it \
+          --name paganini-shopify-migration \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          --env-file .env \
+          {{ if .START_ROW }}--env "START_ROW={{ .START_ROW }}" {{ end }}\
+          {{ if .BATCH_SIZE }}--env "BATCH_SIZE={{ .BATCH_SIZE }}" {{ end }}\
+          {{ if .MAX_CONCURRENT }}--env "MAX_CONCURRENT={{ .MAX_CONCURRENT }}" {{ end }}\
+          {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
+          {{ if .PAGANINI_CSV_PATH }}--env "PAGANINI_CSV_PATH={{ .PAGANINI_CSV_PATH }}" {{ end }}\
+          {{ .NODE_IMAGE }} \
+          npm run migrate-paganini
+  
   migration:progress:
     cmds:
       - tail -fn1 {{ .LOGS_DIR }}/*.log | grep "Progress:"
