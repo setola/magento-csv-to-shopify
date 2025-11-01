@@ -415,6 +415,64 @@ tasks:
           {{ .NODE_IMAGE }} \
           npm run migrate-paganini
   
+  sync:paganini-availability:
+    desc: "Sync only availability/inventory from Paganini CSV to Shopify"
+    summary: |
+      Update only inventory quantities for existing LEUPOLD products from Paganini CSV.
+      This is much faster than full migration and designed for cron jobs.
+      
+      Usage:
+      go-task sync:paganini-availability
+      go-task sync:paganini-availability BATCH_SIZE=200
+      go-task sync:paganini-availability PAGANINI_CSV_PATH=./data/paganini_data_latest.csv
+      
+      Environment variables:
+      NODE_IMAGE: Docker image to use (default: node:alpine)
+      PAGANINI_CSV_PATH: Path to Paganini CSV file (supports wildcards, default: ./data/paganini_data_*.csv)
+      START_ROW: Starting row for batch processing (default: 0)
+      BATCH_SIZE: Number of products per batch (default: 100)
+      MAX_CONCURRENT: Concurrent API requests (default: 3)
+      DELAY_MS: Delay between requests in milliseconds (default: 300)
+    cmds:
+      - |
+        # Create logs directory if it doesn't exist
+        mkdir -p {{ .LOGS_DIR }}
+        
+        # Run Paganini availability sync in Docker
+        docker run --rm -it \
+          --name paganini-availability-sync \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          --env-file .env \
+          {{ if .START_ROW }}--env "START_ROW={{ .START_ROW }}" {{ end }}\
+          {{ if .BATCH_SIZE }}--env "BATCH_SIZE={{ .BATCH_SIZE }}" {{ end }}\
+          {{ if .MAX_CONCURRENT }}--env "MAX_CONCURRENT={{ .MAX_CONCURRENT }}" {{ end }}\
+          {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
+          {{ if .PAGANINI_CSV_PATH }}--env "PAGANINI_CSV_PATH={{ .PAGANINI_CSV_PATH }}" {{ end }}\
+          {{ .NODE_IMAGE }} \
+          npm run sync-paganini-availability
+  
+  cron:paganini-availability:
+    desc: "Download latest Paganini CSV and sync availability (for cron)"
+    summary: |
+      Complete workflow for automated availability sync:
+      1. Download latest Paganini CSV from web source
+      2. Sync availability to Shopify
+      
+      Suitable for cron jobs. Add to crontab:
+      # Sync Paganini availability every 6 hours
+      0 */6 * * * cd /path/to/shopify_importer && go-task cron:paganini-availability >> logs/cron.log 2>&1
+      
+      Usage:
+      go-task cron:paganini-availability
+    cmds:
+      - echo === Starting Paganini Availability Cron Job ===
+      - 'echo "Step 1/2: Downloading latest CSV..."'
+      - task: downloader:download-csv
+      - 'echo "Step 2/2: Syncing availability..."'
+      - task: sync:paganini-availability
+      - echo "=== Cron Job Complete ==="
+  
   migration:progress:
     cmds:
       - tail -fn1 {{ .LOGS_DIR }}/*.log | grep "Progress:"

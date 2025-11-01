@@ -113,18 +113,16 @@ async function createShopifyProduct(productData) {
     }
 
     const product = result.productCreate.product;
-    const variantId = product.variants.edges[0].node.id;
     
     log(`✓ Created product: ${productData.title} (SKU: ${productData.sku})`, 'SUCCESS');
 
-    // Update the default variant with SKU and price
-    await updateVariantDetails(product.id, variantId, productData);
-    
-    // Update inventory cost
-    await updateInventoryCost(variantId, productData.cost || productData.price);
+    // Update the default variant with SKU and price - this returns the new variant ID
+    const newVariantId = await updateVariantDetails(product.id, null, productData);
 
-    // Update inventory quantity
-    await updateInventoryQuantity(variantId, productData.quantity);
+    // Update inventory quantity on the new variant
+    if (newVariantId) {
+      await updateInventoryQuantity(newVariantId, productData.quantity);
+    }
 
     return product;
   } catch (error) {
@@ -179,7 +177,10 @@ async function updateVariantDetails(productId, variantId, productData) {
       throw new Error(JSON.stringify(result.productVariantsBulkCreate.userErrors));
     }
 
+    const newVariantId = result.productVariantsBulkCreate?.productVariants?.[0]?.id;
     log(`  ↳ Variant updated with SKU: ${productData.sku}, Price: ${productData.price}`, 'DEBUG');
+    
+    return newVariantId;
   } catch (error) {
     log(`Warning: Failed to update variant details: ${error.message}`, 'WARN');
     throw error;
@@ -227,13 +228,14 @@ async function updateShopifyProduct(productId, variantId, productData) {
     }
 
     // Update variant with new SKU and price using bulk create (replaces existing variant)
-    await updateVariantDetails(productId, variantId, productData);
+    const newVariantId = await updateVariantDetails(productId, variantId, productData);
 
     log(`↻ Updated product: ${productData.title} (SKU: ${productData.sku})`, 'SUCCESS');
 
-    // Update inventory quantity
-    const newVariantId = variantId; // Get new variant ID if needed
-    await updateInventoryQuantity(newVariantId, productData.quantity);
+    // Update inventory quantity on the new variant
+    if (newVariantId) {
+      await updateInventoryQuantity(newVariantId, productData.quantity);
+    }
 
     return productResult.productUpdate.product;
   } catch (error) {
