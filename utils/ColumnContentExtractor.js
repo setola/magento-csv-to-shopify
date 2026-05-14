@@ -20,7 +20,8 @@
  *     --count-only: Only show count of matching rows
  *     --value, -v: Extract rows where column equals this specific value (instead of checking for any content)
  *     --contains, -c: Extract rows where column contains this substring
- *     --case-insensitive, -i: Make value/contains matching case-insensitive
+ *     --not-contains: Exclude rows where column contains this substring
+ *     --case-insensitive, -i: Make value/contains/not-contains matching case-insensitive
  * 
  * Examples:
  *     node utils/ColumnContentExtractor.js "description"
@@ -209,6 +210,20 @@ async function extractRowsWithContent(filePath, columnName, delimiter = ',', cou
                             }
                             break;
                             
+                        case 'notContains':
+                            // Substring matching (exclude rows containing the substring)
+                            const notContainsRowValue = value ? value.toString() : '';
+                            const notContainsTarget = matchCriteria.value || '';
+                            
+                            if (notContainsTarget === '') {
+                                matches = false;
+                            } else if (matchCriteria.caseInsensitive) {
+                                matches = !notContainsRowValue.toLowerCase().includes(notContainsTarget.toLowerCase());
+                            } else {
+                                matches = !notContainsRowValue.includes(notContainsTarget);
+                            }
+                            break;
+                            
                         default:
                             matches = false;
                     }
@@ -285,6 +300,7 @@ function parseArguments(args) {
         countOnly: false,
         value: null,
         contains: null,
+        notContains: null,
         caseInsensitive: false
     };
     
@@ -325,6 +341,9 @@ function parseArguments(args) {
             case '--contains':
             case '-c':
                 options.contains = args[++i];
+                break;
+            case '--not-contains':
+                options.notContains = args[++i];
                 break;
             case '--case-insensitive':
             case '-i':
@@ -368,7 +387,8 @@ Options:
     --count-only: Only show count of matching rows
     --value, -v: Extract rows where column equals this specific value (instead of checking for any content)
     --contains, -c: Extract rows where column contains this substring
-    --case-insensitive, -i: Make value/contains matching case-insensitive
+    --not-contains: Exclude rows where column contains this substring
+    --case-insensitive, -i: Make value/contains/not-contains matching case-insensitive
 
 Examples:
     node utils/ColumnContentExtractor.js "description"
@@ -428,9 +448,17 @@ async function main() {
         return 1;
     }
     
-    // Validate options: value and contains are mutually exclusive
+    // Validate options: value, contains, and notContains are mutually exclusive
     if (options.value !== null && options.contains !== null) {
         console.error('Error: --value and --contains options cannot be used together.');
+        return 1;
+    }
+    if (options.value !== null && options.notContains !== null) {
+        console.error('Error: --value and --not-contains options cannot be used together.');
+        return 1;
+    }
+    if (options.contains !== null && options.notContains !== null) {
+        console.error('Error: --contains and --not-contains options cannot be used together.');
         return 1;
     }
     
@@ -446,6 +474,9 @@ async function main() {
     } else if (options.contains !== null) {
         matchCriteria.type = 'contains';
         matchCriteria.value = options.contains;
+    } else if (options.notContains !== null) {
+        matchCriteria.type = 'notContains';
+        matchCriteria.value = options.notContains;
     }
     
     // Extract rows based on criteria
@@ -465,6 +496,9 @@ async function main() {
             break;
         case 'contains':
             criteriaDescription = `contains '${matchCriteria.value}'${options.caseInsensitive ? ' (case-insensitive)' : ''}`;
+            break;
+        case 'notContains':
+            criteriaDescription = `does not contain '${matchCriteria.value}'${options.caseInsensitive ? ' (case-insensitive)' : ''}`;
             break;
         default:
             criteriaDescription = 'has content';

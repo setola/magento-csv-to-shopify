@@ -208,6 +208,7 @@ tasks:
       VALUE: '{{ .VALUE | default "" }}'
       CSV_FILE_PARAM: '{{ .CSV_FILE | default "" }}'
       ARGS: '{{ .CLI_ARGS | default "" }}'
+      OUTPUT: '{{ .OUTPUT | default "" }}'
     cmds:
       - |
         if [ "{{ .ARGS }}" != "" ]; then
@@ -219,7 +220,7 @@ tasks:
             --volume "$(pwd):/app" \
             --env-file .env \
             {{ .NODE_IMAGE }} \
-            node utils/ColumnContentExtractor.js dummy "$CSV_ARG" {{ .ARGS }}
+            node utils/ColumnContentExtractor.js {{ .ARGS }}
         elif [ "{{ .COLUMN }}" = "" ] || [ "{{ .VALUE }}" = "" ]; then
           echo "Error: Both COLUMN and VALUE parameters are required"
           echo "Usage: go-task csv:extract-by-value COLUMN=column_name VALUE=target_value [options]"
@@ -234,7 +235,7 @@ tasks:
             --volume "$(pwd):/app" \
             --env-file .env \
             {{ .NODE_IMAGE }} \
-            node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --value "{{ .VALUE }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
+            echo node utils/ColumnContentExtractor.js "{{ .COLUMN }}" "$CSV_ARG" --value "{{ .VALUE }}" {{ .OUTPUT_FLAG }} {{ .COUNT_ONLY_FLAG }} {{ .NO_HEADER_FLAG }} {{ .CASE_INSENSITIVE_FLAG }}
         fi
 
   csv:extract-by-contains:
@@ -476,6 +477,29 @@ tasks:
   migration:progress:
     cmds:
       - tail -fn1 {{ .LOGS_DIR }}/*.log | grep "Progress:"
+
+  init:
+    desc: "Install npm dependencies using Docker"
+    summary: |
+      Install all npm dependencies inside Docker to bootstrap the project.
+      Creates/updates the node_modules directory needed by all migration tasks.
+      Run this once before any migration or sync task.
+
+      Usage:
+      go-task init
+      go-task init NODE_IMAGE=node:18-alpine
+
+      Environment Variables:
+      NODE_IMAGE: Docker image to use (default: node:alpine)
+    cmds:
+      - |
+        echo "Installing npm dependencies..."
+        docker run --rm -it \
+          --name shopify-importer-init \
+          --workdir /app \
+          --volume "$(pwd):/app" \
+          {{ .NODE_IMAGE }} \
+          npm install
 
   delete:products:
     desc: "Delete products from Shopify using CSV file with Docker"
