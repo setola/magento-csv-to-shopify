@@ -11,6 +11,8 @@ This feature provides a lightweight, fast alternative to the full Paganini produ
 - **Designed for automation** - suitable for cron jobs
 - **Includes CSV download** - can fetch latest data automatically
 - **Filters LEUPOLD products** - same vendor filtering as full import
+- **Uses Paganini location** - writes stock to the separate Shopify location
+  named "Paganini" (or `PAGANINI_LOCATION_ID` override)
 
 ## Quick Start
 
@@ -77,6 +79,11 @@ SHOPIFY_STORE_URL=your-store.myshopify.com
 SHOPIFY_ACCESS_TOKEN=shpat_xxx
 SHOPIFY_LOCATION_ID=gid://shopify/Location/xxx
 
+# Paganini inventory location (separate from default)
+PAGANINI_LOCATION_NAME=Paganini
+# Optional explicit override; if empty, location is resolved by name
+PAGANINI_LOCATION_ID=
+
 # Paganini CSV Path
 PAGANINI_CSV_PATH=./data/paganini_data_*.csv
 
@@ -121,8 +128,10 @@ The availability sync has different defaults than full migration:
 
 3. **Update Inventory**
    - Finds product by SKU
+   - Resolves the active Shopify location named `Paganini`
+     (or uses `PAGANINI_LOCATION_ID`)
    - Maps availability (A=1, B=4, C=10, other=0)
-   - Updates Shopify inventory
+   - Updates Shopify inventory at the Paganini location
 
 ### What Gets Updated
 
@@ -154,12 +163,14 @@ The availability sync has different defaults than full migration:
 ### When to Use Each
 
 **Use Full Migration when:**
+
 - First time importing products
 - Prices have changed
 - Product descriptions need updating
 - Major catalog changes
 
 **Use Availability Sync when:**
+
 - Only stock levels have changed
 - Running scheduled automation
 - Need fast updates
@@ -186,6 +197,7 @@ grep ERROR logs/migration-*.log
 ### Statistics
 
 Each sync provides:
+
 - Total processed
 - Successfully updated
 - Not found (products not in Shopify)
@@ -194,6 +206,7 @@ Each sync provides:
 - Elapsed time
 
 Example output:
+
 ```
 === Availability Sync Complete ===
 Total processed: 150
@@ -209,6 +222,7 @@ Elapsed time: 1m 23s (83451ms)
 ### Products Not Found
 
 If many products show "not found":
+
 - Check if they were imported with full migration first
 - Verify SKU format matches (LEU.xxxxx)
 - Check LEUPOLD vendor filter
@@ -216,6 +230,7 @@ If many products show "not found":
 ### Rate Limiting
 
 If you hit rate limits:
+
 ```bash
 # Reduce concurrency
 go-task sync:paganini-availability MAX_CONCURRENT=2
@@ -230,6 +245,7 @@ go-task sync:paganini-availability BATCH_SIZE=50
 ### CSV Download Fails
 
 Check web download configuration:
+
 ```bash
 # Test download separately
 go-task downloader:download-csv
@@ -256,6 +272,7 @@ echo $LOGIN_URL
 ### Error Handling
 
 The script:
+
 - Continues on individual errors (doesn't stop)
 - Logs all errors with SKU
 - Returns proper exit codes
@@ -303,6 +320,7 @@ go-task sync:paganini-availability BATCH_SIZE=200 MAX_CONCURRENT=4 DELAY_MS=200
 ## Integration
 
 The availability sync integrates seamlessly with:
+
 - **Web Downloader** - Automatic CSV fetching
 - **Logger** - Unified logging
 - **RateLimiter** - Shopify API management

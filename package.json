@@ -10,6 +10,10 @@
     "migrate-customers": "node customer-migrate.js",
     "migrate-paganini": "node paganini-migrate.js",
     "sync-paganini-availability": "node paganini-availability-sync.js",
+    "cleanup-paganini-default-location": "node paganini-default-location-cleanup.js",
+    "generate-redirects-from-gsc": "node generate-shopify-redirects-from-gsc.js",
+    "generate-content-enrichment": "node generate-content-enrichment-with-openai.js",
+    "upload-content-enrichment": "node upload-content-enrichment-to-shopify.js",
     "delete-products": "node product-delete.js",
     "web-download": "node web-download.js",
     "test": "node product-migrate.js"

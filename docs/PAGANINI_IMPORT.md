@@ -10,6 +10,9 @@ The Paganini import filters products by vendor (only LEUPOLD) and normalizes the
 - **Price Normalization**: Italian format (comma as decimal separator) to Shopify decimal format
 - **HTML Stripping**: Removes HTML tags from descriptions, replaces `<br>` with spaces
 - **Availability Mapping**: A=1, B=4, C=10, other=0
+- **Dedicated Shopify Location**: inventory is written to the active Shopify
+  location named "Paganini" (or `PAGANINI_LOCATION_ID` override), not the
+  default `SHOPIFY_LOCATION_ID`
 - **Title Normalization**: Lowercase with first letter capitalized
 
 ## CSV Format
@@ -62,6 +65,11 @@ PAGANINI_CSV_PATH=./data/paganini_data_*.csv
 SHOPIFY_STORE_URL=your-store.myshopify.com
 SHOPIFY_ACCESS_TOKEN=shpat_xxx
 SHOPIFY_LOCATION_ID=gid://shopify/Location/xxx
+
+# Paganini inventory location (separate from default)
+PAGANINI_LOCATION_NAME=Paganini
+# Optional explicit override; if empty, location is resolved by name
+PAGANINI_LOCATION_ID=
 
 # Batch Configuration
 START_ROW=0
@@ -160,8 +168,10 @@ PaganiniNormalizer
 3. **Normalize** - Transform data according to rules
 4. **Check Existence** - Search for product by SKU
 5. **Create/Update** - Create new or update existing product
-6. **Set Inventory** - Update inventory quantity
-7. **Track Progress** - Log results and statistics
+6. **Resolve Location** - Find the active Shopify location named `Paganini`
+   (or use `PAGANINI_LOCATION_ID`)
+7. **Set Inventory** - Update inventory quantity at the Paganini location
+8. **Track Progress** - Log results and statistics
 
 ## Testing
 
@@ -185,6 +195,7 @@ grep "LEU.90011" logs/migration-*.log
 ### Verify Import
 
 Check the Shopify admin for:
+
 - Product title formatting
 - Description without HTML tags
 - Correct vendor (LEUPOLD)

@@ -5,17 +5,17 @@ version: "3"
 vars:
   # File and directory paths
   CSV_DIR: '{{ .CSV_DIR | default "./data" }}'
-  CSV_FILE: 
+  CSV_FILE:
     sh: find {{ .CSV_DIR }} -maxdepth 1 -type f -iname "export_catalog_product_*.csv" | head -1
   CSV_FILE_TEST: '{{ .CSV_FILE_TEST | default (print .CSV_DIR "/products_test.csv") }}'
   LOGS_DIR: '{{ .LOGS_DIR | default "./logs" }}'
-  
+
   # Docker configuration
   NODE_IMAGE: '{{ .NODE_IMAGE | default "node:alpine" }}'
   DOCKER_LOGS_DIR: '{{ .DOCKER_LOGS_DIR | default "/app/logs" }}'
-  
+
   # Common flags for CSV tasks
-  OUTPUT_FLAG: '{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}'
+  OUTPUT_FLAG: "{{ if .OUTPUT }}--output {{ .OUTPUT }}{{ end }}"
   COUNT_ONLY_FLAG: '{{ if eq .COUNT_ONLY "true" }}--count-only{{ end }}'
   NO_HEADER_FLAG: '{{ if eq .NO_HEADER "true" }}--no-header{{ end }}'
   CASE_INSENSITIVE_FLAG: '{{ if eq .CASE_INSENSITIVE "true" }}--case-insensitive{{ end }}'
@@ -23,7 +23,6 @@ vars:
   SORT_FLAG: '{{ if eq .SORT "true" }}--sort{{ end }}'
 
 tasks:
-
   csv:count-rows:
     cmds:
       - |
@@ -40,7 +39,7 @@ tasks:
     summary: |
       Search for a specific term in Magento product CSV files.
       Properly handles multi-line CSV content (e.g., HTML descriptions).
-      
+
       Usage: go-task csv:search TERM=BIX.A-REM-70S
       Usage: go-task csv:search TERM=DAA.100358
       Usage: go-task csv:search TERM=DAA.100358 CSV_FILE=./export_catalog_product_20251010_200348.csv
@@ -58,7 +57,7 @@ tasks:
     summary: |
       Search for an exact SKU match in the SKU column of Magento CSV files.
       More precise than general search - only matches the SKU field.
-      
+
       Usage: go-task csv:search-sku SKU=BIX.A-REM-70S
       Usage: go-task csv:search-sku SKU=DAA.100358
       Usage: go-task csv:search-sku SKU=SKU123 > output.csv
@@ -74,21 +73,21 @@ tasks:
     summary: |
       Extract distinct values from a specified column in Magento CSV files.
       Supports counting, sorting, and output to files.
-      
+
       Usage Examples:
       go-task csv:distinct COLUMN=product_type
       go-task csv:distinct COLUMN=categories COUNT=true SORT=true
       go-task csv:distinct COLUMN=sku OUTPUT=sku_list.txt
       go-task csv:distinct -- --list-columns
       go-task csv:distinct COLUMN=manufacturer CSV_FILE=./custom.csv
-      
+
       Options:
       COLUMN: Column name to analyze (required unless using --list-columns)
       CSV_FILE: CSV file path (optional, defaults to auto-discovery)
       COUNT: Show count of each value (true/false, default: false)
       SORT: Sort output alphabetically (true/false, default: false) 
       OUTPUT: Save results to file instead of stdout
-      
+
       Special usage:
       go-task csv:distinct -- --list-columns    # List all available columns
       go-task csv:distinct -- --help           # Show detailed help
@@ -131,21 +130,21 @@ tasks:
     summary: |
       Extract rows from CSV files where a specified column contains content (non-empty values).
       Useful for filtering products based on specific fields like descriptions, categories, etc.
-      
+
       Usage Examples:
       go-task csv:extract-by-column COLUMN=description
       go-task csv:extract-by-column COLUMN=short_description OUTPUT=products_with_descriptions.csv
       go-task csv:extract-by-column COLUMN=categories CSV_FILE=./custom.csv COUNT_ONLY=true
       go-task csv:extract-by-column -- --list-columns
       go-task csv:extract-by-column -- --help
-      
+
       Options:
       COLUMN: Column name to check for content (required unless using --list-columns)
       CSV_FILE: CSV file path (optional, defaults to auto-discovery)
       OUTPUT: Save filtered results to file instead of stdout
       COUNT_ONLY: Only show count of matching rows (true/false, default: false)
       NO_HEADER: Do not include header row in output (true/false, default: false)
-      
+
       Special usage:
       go-task csv:extract-by-column -- --list-columns  # List all available columns
       go-task csv:extract-by-column -- --help         # Show detailed help
@@ -188,13 +187,13 @@ tasks:
     summary: |
       Extract rows from CSV files where a specified column equals an exact value.
       Supports case-insensitive matching and can output to files.
-      
+
       Usage Examples:
       go-task csv:extract-by-value COLUMN=status VALUE=Enabled
       go-task csv:extract-by-value COLUMN=product_type VALUE="simple" OUTPUT=simple_products.csv
       go-task csv:extract-by-value COLUMN=manufacturer VALUE="Apple" CASE_INSENSITIVE=true COUNT_ONLY=true
       go-task csv:extract-by-value -- --list-columns
-      
+
       Options:
       COLUMN: Column name to check (required unless using --list-columns)
       VALUE: Exact value to match (required unless using --list-columns)
@@ -243,13 +242,13 @@ tasks:
     summary: |
       Extract rows from CSV files where a specified column contains a substring.
       Supports case-insensitive matching and can output to files.
-      
+
       Usage Examples:
       go-task csv:extract-by-contains COLUMN=name SUBSTRING=iPhone
       go-task csv:extract-by-contains COLUMN=description SUBSTRING="wireless" OUTPUT=wireless_products.csv
       go-task csv:extract-by-contains COLUMN=categories SUBSTRING="electronics" CASE_INSENSITIVE=true COUNT_ONLY=true
       go-task csv:extract-by-contains -- --list-columns
-      
+
       Options:
       COLUMN: Column name to check (required unless using --list-columns)
       SUBSTRING: Substring to search for (required unless using --list-columns)
@@ -309,12 +308,12 @@ tasks:
     summary: |
       Run customer migration directly with Docker without using docker compose.
       Uses the NODE_IMAGE environment variable or defaults to node:alpine.
-      
+
       Usage:
       go-task migration:customers
       go-task migration:customers NODE_IMAGE=node:18-alpine
       go-task migration:customers START_ROW=100 BATCH_SIZE=50
-      
+
       Environment variables:
       NODE_IMAGE: Docker image to use (default: node:alpine)
       START_ROW: Starting row for batch processing
@@ -324,7 +323,7 @@ tasks:
       - |
         # Create logs directory if it doesn't exist
         mkdir -p {{ .LOGS_DIR }}
-        
+
         # Run customer migration in Docker
         docker run --rm -it \
           --name magento-shopify-customer-migration \
@@ -338,18 +337,18 @@ tasks:
           {{ if .CUSTOMERS_CSV_PATH }}--env "CUSTOMERS_CSV_PATH={{ .CUSTOMERS_CSV_PATH }}" {{ end }}\
           {{ .NODE_IMAGE }} \
           npm run migrate-customers
-  
+
   migration:products:
     desc: "Run product migration using Docker (without compose)"
     summary: |
       Run product migration directly with Docker without using docker compose.
       Uses the NODE_IMAGE environment variable or defaults to node:alpine.
-      
+
       Usage:
       go-task migration:products
       go-task migration:products NODE_IMAGE=node:18-alpine
       go-task migration:products START_ROW=100 BATCH_SIZE=500
-      
+
       Environment variables:
       NODE_IMAGE: Docker image to use (default: node:alpine)
       START_ROW: Starting row for batch processing
@@ -359,7 +358,7 @@ tasks:
       - |
         # Create logs directory if it doesn't exist
         mkdir -p {{ .LOGS_DIR }}
-        
+
         # Run product migration in Docker
         docker run --rm -it \
           --name magento-shopify-product-migration \
@@ -373,7 +372,7 @@ tasks:
           {{ if .CSV_PATH }}--env "CSV_PATH={{ .CSV_PATH }}" {{ end }}\
           {{ .NODE_IMAGE }} \
           npm run migrate-products
-  
+
   migration:paganini:
     desc: "Run Paganini CSV import to Shopify using Docker"
     summary: |
@@ -383,12 +382,12 @@ tasks:
       - Price normalization (Italian format with comma decimal)
       - HTML stripping from descriptions
       - Availability mapping (A=1, B=4, C=10, other=0)
-      
+
       Usage:
       go-task migration:paganini
       go-task migration:paganini START_ROW=0 BATCH_SIZE=50
       go-task migration:paganini PAGANINI_CSV_PATH=./data/paganini_data_latest.csv
-      
+
       Environment variables:
       NODE_IMAGE: Docker image to use (default: node:alpine)
       PAGANINI_CSV_PATH: Path to Paganini CSV file (supports wildcards, default: ./data/paganini_data_*.csv)
@@ -396,12 +395,15 @@ tasks:
       BATCH_SIZE: Number of products per batch (default: 50)
       MAX_CONCURRENT: Concurrent API requests (default: 2)
       DELAY_MS: Delay between requests in milliseconds (default: 500)
+      PAGANINI_PRODUCT_FILTER: Product filter (default: optics; use leupold/all for all Leupold rows)
+      PAGANINI_LOCATION_NAME: Shopify location name for Paganini stock (default: Paganini)
+      PAGANINI_LOCATION_ID: Optional Shopify location GID override
       All other environment variables from .env file are passed through
     cmds:
       - |
         # Create logs directory if it doesn't exist
         mkdir -p {{ .LOGS_DIR }}
-        
+
         # Run Paganini migration in Docker
         docker run --rm -it \
           --name paganini-shopify-migration \
@@ -413,20 +415,23 @@ tasks:
           {{ if .MAX_CONCURRENT }}--env "MAX_CONCURRENT={{ .MAX_CONCURRENT }}" {{ end }}\
           {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
           {{ if .PAGANINI_CSV_PATH }}--env "PAGANINI_CSV_PATH={{ .PAGANINI_CSV_PATH }}" {{ end }}\
+          {{ if .PAGANINI_PRODUCT_FILTER }}--env "PAGANINI_PRODUCT_FILTER={{ .PAGANINI_PRODUCT_FILTER }}" {{ end }}\
+          {{ if .PAGANINI_LOCATION_NAME }}--env "PAGANINI_LOCATION_NAME={{ .PAGANINI_LOCATION_NAME }}" {{ end }}\
+          {{ if .PAGANINI_LOCATION_ID }}--env "PAGANINI_LOCATION_ID={{ .PAGANINI_LOCATION_ID }}" {{ end }}\
           {{ .NODE_IMAGE }} \
           npm run migrate-paganini
-  
+
   sync:paganini-availability:
     desc: "Sync only availability/inventory from Paganini CSV to Shopify"
     summary: |
       Update only inventory quantities for existing LEUPOLD products from Paganini CSV.
       This is much faster than full migration and designed for cron jobs.
-      
+
       Usage:
       go-task sync:paganini-availability
       go-task sync:paganini-availability BATCH_SIZE=200
       go-task sync:paganini-availability PAGANINI_CSV_PATH=./data/paganini_data_latest.csv
-      
+
       Environment variables:
       NODE_IMAGE: Docker image to use (default: node:alpine)
       PAGANINI_CSV_PATH: Path to Paganini CSV file (supports wildcards, default: ./data/paganini_data_*.csv)
@@ -434,11 +439,14 @@ tasks:
       BATCH_SIZE: Number of products per batch (default: 100)
       MAX_CONCURRENT: Concurrent API requests (default: 3)
       DELAY_MS: Delay between requests in milliseconds (default: 300)
+      PAGANINI_PRODUCT_FILTER: Product filter (default: optics; use leupold/all for all Leupold rows)
+      PAGANINI_LOCATION_NAME: Shopify location name for Paganini stock (default: Paganini)
+      PAGANINI_LOCATION_ID: Optional Shopify location GID override
     cmds:
       - |
         # Create logs directory if it doesn't exist
         mkdir -p {{ .LOGS_DIR }}
-        
+
         # Run Paganini availability sync in Docker
         docker run --rm -it \
           --name paganini-availability-sync \
@@ -450,20 +458,23 @@ tasks:
           {{ if .MAX_CONCURRENT }}--env "MAX_CONCURRENT={{ .MAX_CONCURRENT }}" {{ end }}\
           {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
           {{ if .PAGANINI_CSV_PATH }}--env "PAGANINI_CSV_PATH={{ .PAGANINI_CSV_PATH }}" {{ end }}\
+          {{ if .PAGANINI_PRODUCT_FILTER }}--env "PAGANINI_PRODUCT_FILTER={{ .PAGANINI_PRODUCT_FILTER }}" {{ end }}\
+          {{ if .PAGANINI_LOCATION_NAME }}--env "PAGANINI_LOCATION_NAME={{ .PAGANINI_LOCATION_NAME }}" {{ end }}\
+          {{ if .PAGANINI_LOCATION_ID }}--env "PAGANINI_LOCATION_ID={{ .PAGANINI_LOCATION_ID }}" {{ end }}\
           {{ .NODE_IMAGE }} \
           npm run sync-paganini-availability
-  
+
   cron:paganini-availability:
     desc: "Download latest Paganini CSV and sync availability (for cron)"
     summary: |
       Complete workflow for automated availability sync:
       1. Download latest Paganini CSV from web source
       2. Sync availability to Shopify
-      
+
       Suitable for cron jobs. Add to crontab:
       # Sync Paganini availability every 6 hours
       0 */6 * * * cd /path/to/shopify_importer && go-task cron:paganini-availability >> logs/cron.log 2>&1
-      
+
       Usage:
       go-task cron:paganini-availability
     cmds:
@@ -473,7 +484,7 @@ tasks:
       - 'echo "Step 2/2: Syncing availability..."'
       - task: sync:paganini-availability
       - echo "=== Cron Job Complete ==="
-  
+
   migration:progress:
     cmds:
       - tail -fn1 {{ .LOGS_DIR }}/*.log | grep "Progress:"
@@ -506,13 +517,13 @@ tasks:
     summary: |
       Delete products from Shopify based on SKUs listed in a CSV file.
       Uses Docker to run the deletion script in an isolated environment.
-      
+
       Usage Examples:
       go-task delete:products                               # Delete using default settings
       go-task delete:products DELETE_CSV_PATH=./data/to_delete.csv
       go-task delete:products START_ROW=0 BATCH_SIZE=25    # Process in smaller batches
       go-task delete:products NODE_IMAGE=node:18-alpine    # Use specific Node.js version
-      
+
       Environment Variables:
       DELETE_CSV_PATH: Path to CSV file with SKUs to delete (default: ./data/products_test.csv)
       START_ROW: Starting row for batch processing (default: 0)
@@ -520,7 +531,7 @@ tasks:
       MAX_CONCURRENT: Concurrent API requests (default: 2, keep low to avoid rate limits)
       DELAY_MS: Delay between requests in milliseconds (default: 1000)
       NODE_IMAGE: Docker image to use (default: node:alpine)
-      
+
       IMPORTANT: This will permanently delete products from your Shopify store!
       Always test with a small batch first and ensure you have backups.
     vars:
@@ -529,11 +540,11 @@ tasks:
       - |
         # Create logs directory if it doesn't exist
         mkdir -p {{ .LOGS_DIR }}
-        
+
         echo "⚠️  WARNING: This will permanently delete products from your Shopify store!"
         echo "CSV file: {{ .DELETE_CSV_PATH_VAR }}"
         echo "Starting deletion process..."
-        
+
         # Run product deletion in Docker
         docker run --rm -it \
           --name shopify-product-deletion \
@@ -547,18 +558,18 @@ tasks:
           {{ if .DELAY_MS }}--env "DELAY_MS={{ .DELAY_MS }}" {{ end }}\
           {{ .NODE_IMAGE }} \
           npm run delete-products
-  
+
   delete:test-products:
     desc: "Delete the test products from products_test.csv"
     summary: |
       Convenience task to delete the test products defined in data/products_test.csv.
       This includes the SKUs: BIX.A-REM-70S, DAA.100358, GLK.33781, WLK.WALGWP-SLCR2-BT
-      
+
       Usage:
       go-task delete:test-products                    # Delete all test products
       go-task delete:test-products BATCH_SIZE=2      # Delete in smaller batches
       go-task delete:test-products DELAY_MS=2000     # Add more delay between requests
-      
+
       IMPORTANT: This will permanently delete the test products from your Shopify store!
     vars:
       BATCH_SIZE_DEFAULT: '{{ .BATCH_SIZE | default "4" }}'
@@ -575,12 +586,12 @@ tasks:
     summary: |
       Download CSV files from web sources that require authentication.
       Uses Docker to run the web downloader script in an isolated environment.
-      
+
       Usage Examples:
       go-task downloader:download-csv                           # Download using default settings
       go-task downloader:download-csv NODE_IMAGE=node:18-alpine # Use specific Node.js version
       go-task downloader:download-csv OUTPUT_DIR=./custom_data   # Custom output directory
-      
+
       Environment Variables (set in .env file):
       LOGIN_URL: URL for authentication endpoint (required)
       DOWNLOAD_URL: URL to download CSV file from (required)
@@ -588,10 +599,10 @@ tasks:
       WEB_PASSWORD: Password for authentication (required)
       OUTPUT_DIR: Directory to save downloaded files (default: ./data)
       DOWNLOAD_FILENAME: Base filename for downloaded file (default: downloaded_file.csv)
-      
+
       Additional Docker Options:
       NODE_IMAGE: Docker image to use (default: node:alpine)
-      
+
       The script will:
       1. Authenticate with the provided credentials
       2. Extract and store PHPSESSID cookie
@@ -601,12 +612,12 @@ tasks:
       - |
         # Create logs directory if it doesn't exist
         mkdir -p {{ .LOGS_DIR }}
-        
+
         echo "Starting web CSV download process..."
         echo "Login URL: ${LOGIN_URL:-'Not set'}"
         echo "Download URL: ${DOWNLOAD_URL:-'Not set'}"
         echo "Output directory: ${OUTPUT_DIR:-'./data'}"
-        
+
         # Run web downloader in Docker
         docker run --rm -it \
           --name web-csv-downloader \
